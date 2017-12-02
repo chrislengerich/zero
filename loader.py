@@ -1,9 +1,11 @@
 from __future__ import print_function
 import torch.utils.data as tud
 import xml.etree.ElementTree as et
+import os
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from tqdm import tqdm
 
 import cv2
 
@@ -31,13 +33,31 @@ class Dataset(tud.Dataset):
                               'height': ymax - ymin, 'name': name })
         return boxes
 
-    def __init__(self, images, annotations):
+    def __init__(self, data_file=None):
+        annotations_base = "/home/ubuntu/zero_label/data/VOCdevkit/VOC2007.kitti/Annotations"
+        annotation_suffix = ".xml"
+        images_base = "/home/ubuntu/zero_label/data/VOCdevkit/VOC2007.kitti/JPEGImages"
+        images_suffix = ".png"
+
+        annotation_paths = []
+        image_paths = []
+
+        if data_file:
+            with open(data_file) as f:
+                prefixes = f.readlines()
+                for p in prefixes:
+                    annotation_paths.append(os.path.join(annotations_base, p.strip() + annotation_suffix))
+                    image_paths.append(os.path.join(images_base, p.strip() + images_suffix))
+            self._load(image_paths, annotation_paths)
+
+    def _load(self, images=[], annotations=[]):
         assert(len(images) == len(annotations))
         self.data = []
-        for im_path, bb_path in zip(images, annotations):
+        for im_path, bb_path in tqdm(zip(images, annotations)):
             annotations = self._load_annotations(bb_path)
             bounding_boxes = self._parse_bounding_boxes(annotations)
             self.data.append({'image': self._load_image(im_path), 'annotations': annotations, 'bounding_boxes': bounding_boxes})
+        print("%d data points loaded" % len(self.data))
 
     def __len__(self):
         return len(self.data)
@@ -58,7 +78,11 @@ class Dataset(tud.Dataset):
 if __name__ == '__main__':
 
     # Single data point.
-    d = Dataset(['/home/ubuntu/zero_label/data/VOCdevkit/VOC2007.kitti/JPEGImages/0000-000000.png'],
+    d = Dataset()
+    d._load(['/home/ubuntu/zero_label/data/VOCdevkit/VOC2007.kitti/JPEGImages/0000-000000.png'],
                 ['/home/ubuntu/zero_label/data/VOCdevkit/VOC2007.kitti/Annotations/0000-000000.xml'])
-    print("%d data points loaded" % len(d))
+    print(d[0])
+
+    # Dataset file.
+    d = Dataset("/home/ubuntu/zero/data/trainval_car")
     print(d[0])
