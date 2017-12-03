@@ -7,6 +7,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from tqdm import tqdm
 
+import torch.autograd as autograd
+import torch
+import numpy as np
+
 import cv2
 
 # VOC-formatted data
@@ -74,6 +78,23 @@ class Dataset(tud.Dataset):
             ax.add_patch(rect)
         plt.show()
 
+def collate(batch):
+    inputs, labels = zip(*batch)
+    inputs = np.vstack(inputs)
+    labels = np.vstack(labels)
+    inputs = autograd.Variable(torch.from_numpy(inputs))
+    labels = autograd.Variable(torch.from_numpy(labels))
+    return inputs, labels
+
+def make_loader(data_path, batch_size):
+    dataset = Dataset(data_path)
+    sampler = tud.sampler.RandomSampler(dataset)
+    loader = tud.DataLoader(dataset,
+                batch_size=batch_size,
+                sampler=sampler,
+                collate_fn=collate)
+    return loader
+
 
 if __name__ == '__main__':
 
@@ -86,3 +107,6 @@ if __name__ == '__main__':
     # Dataset file.
     d = Dataset("/home/ubuntu/zero/data/trainval_car")
     print(d[0])
+
+    # Data loader
+    print(make_loader("/home/ubuntu/zero/data/trainval_car", 48))
