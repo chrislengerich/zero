@@ -29,7 +29,7 @@ def average_precision(ground_truth, predictions):
     for p in predictions:
         was_matched = False
         if p['confidence'] < past_confidence:
-            precisions.append((float(true_positives) / (true_positives + false_positives), float(true_positives) / total_positives))
+            precisions.append((float(true_positives) / (true_positives + false_positives + 0.0001), float(true_positives) / total_positives))
         past_confidence = p['confidence']
 
         for i,g in enumerate(ground_truth):
@@ -40,15 +40,17 @@ def average_precision(ground_truth, predictions):
         if not was_matched:
             false_positives += 1
     precisions.append(
-        (float(true_positives) / (true_positives + false_positives), float(true_positives) / total_positives))
+        (float(true_positives) / (true_positives + false_positives + 0.0001), float(true_positives) / total_positives))
 
     return _average_precision(precisions)
 
 def _average_precision(pr):
+    # See http://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html
+
     prior_recall = 0.0
     ap = 0.0
     for i in range(len(pr)):
-        ap += (pr[i][1] - prior_recall)*pr[i][0]
+        ap += (pr[i][1] - prior_recall) * pr[i][0]
         prior_recall = pr[i][1]
     return ap
 
@@ -112,4 +114,7 @@ if __name__ == "__main__":
     for bb in predictions:
         bb['confidence'] = 1.0
 
-    assert map(d[0]['bounding_boxes'], predictions) == 1.0, map(d[0]['bounding_boxes'], predictions)
+    assert map(d[0]['bounding_boxes'], predictions) > 0.9999, map(d[0]['bounding_boxes'], predictions)
+
+    del predictions[3]
+    assert map(d[0]['bounding_boxes'], predictions) < 0.9, map(d[0]['bounding_boxes'], predictions)
