@@ -1,12 +1,14 @@
 import numpy as np
+import copy
+from loader import Dataset
 
-# Given two sets of bounding boxes, compute the mean average precision.
+# Given two sets of bounding boxes, return the mean average precision over all of the classes.
 def map(ground_truth, predictions):
-    classes = set([g['class'] for g in ground_truth])
+    classes = set([g['class'] for g in ground_truth if g['class'] != 'dontcare'])
 
     average_precisions = []
     for c in classes:
-        ap = average_precision(filter([g['class'] == c for g in ground_truth]), filter([p['class'] == c for p in predictions]))
+        ap = average_precision(filter(lambda g: g['class'] == c, ground_truth), filter(lambda g: g['class'] == c, predictions))
         average_precisions.append(ap)
     return np.mean(average_precisions)
 
@@ -37,9 +39,18 @@ def average_precision(ground_truth, predictions):
                 was_matched = True
         if not was_matched:
             false_positives += 1
-        # TODO:
-        # Average the precisions (interpolated).
-    return precisions
+    precisions.append(
+        (float(true_positives) / (true_positives + false_positives), float(true_positives) / total_positives))
+
+    return _average_precision(precisions)
+
+def _average_precision(pr):
+    prior_recall = 0.0
+    ap = 0.0
+    for i in range(len(pr)):
+        ap += (pr[i][1] - prior_recall)*pr[i][0]
+        prior_recall = pr[i][1]
+    return ap
 
 def iou(bb1, bb2):
     """
@@ -48,29 +59,29 @@ def iou(bb1, bb2):
     Parameters
     ----------
     bb1 : dict
-        Keys: {'x1', 'x2', 'y1', 'y2'}
-        The (x1, y1) position is at the top left corner,
-        the (x2, y2) position is at the bottom right corner
+        Keys: {'xmin', 'xmax', 'ymin', 'ymax'}
+        The (xmin, ymin) position is at the top left corner,
+        the (xmax, ymax) position is at the bottom right corner
     bb2 : dict
-        Keys: {'x1', 'x2', 'y1', 'y2'}
+        Keys: {'xmin', 'xmax', 'ymin', 'ymax'}
         The (x, y) position is at the top left corner,
-        the (x2, y2) position is at the bottom right corner
+        the (xmax, ymax) position is at the bottom right corner
 
     Returns
     -------
     float
         in [0, 1]
     """
-    assert bb1['x1'] < bb1['x2']
-    assert bb1['y1'] < bb1['y2']
-    assert bb2['x1'] < bb2['x2']
-    assert bb2['y1'] < bb2['y2']
+    assert bb1['xmin'] < bb1['xmax']
+    assert bb1['ymin'] < bb1['ymax']
+    assert bb2['xmin'] < bb2['xmax']
+    assert bb2['ymin'] < bb2['ymax']
 
     # determine the coordinates of the intersection rectangle
-    x_left = max(bb1['x1'], bb2['x1'])
-    y_top = max(bb1['y1'], bb2['y1'])
-    x_right = min(bb1['x2'], bb2['x2'])
-    y_bottom = min(bb1['y2'], bb2['y2'])
+    x_left = max(bb1['xmin'], bb2['xmin'])
+    y_top = max(bb1['ymin'], bb2['ymin'])
+    x_right = min(bb1['xmax'], bb2['xmax'])
+    y_bottom = min(bb1['ymax'], bb2['ymax'])
 
     if x_right < x_left or y_bottom < y_top:
         return 0.0
@@ -80,8 +91,8 @@ def iou(bb1, bb2):
     intersection_area = (x_right - x_left) * (y_bottom - y_top)
 
     # compute the area of both AABBs
-    bb1_area = (bb1['x2'] - bb1['x1']) * (bb1['y2'] - bb1['y1'])
-    bb2_area = (bb2['x2'] - bb2['x1']) * (bb2['y2'] - bb2['y1'])
+    bb1_area = (bb1['xmax'] - bb1['xmin']) * (bb1['ymax'] - bb1['ymin'])
+    bb2_area = (bb2['xmax'] - bb2['xmin']) * (bb2['ymax'] - bb2['ymin'])
 
     # compute the intersection over union by taking the intersection
     # area and dividing it by the sum of prediction + ground-truth
@@ -90,3 +101,15 @@ def iou(bb1, bb2):
     assert iou >= 0.0
     assert iou <= 1.0
     return iou
+
+if __name__ == "__main__":
+    d = Dataset()
+    d._load(['/home/ubuntu/zero_label/data/VOCdevkit/VOC2007.kitti/JPEGImages/0000-000000.png'],
+            ['/home/ubuntu/zero_label/data/VOCdevkit/VOC2007.kitti/Annotations/0000-000000.xml'])
+    print(d[0])
+
+    predictions = copy.deepcopy(d[0]['bounding_boxes'])
+    for bb in predictions:
+        bb['confidence'] = 1.0
+
+    assert map(d[0]['bounding_boxes'], predictions) == 1.0, map(d[0]['bounding_boxes'], predictions)

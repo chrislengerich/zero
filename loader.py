@@ -34,7 +34,7 @@ class Dataset(tud.Dataset):
                 ymin = float(box.find('ymin').text)
                 ymax = float(box.find('ymax').text)
                 boxes.append({'xmin': xmin, 'xmax': xmax, 'ymin': ymin, 'ymax': ymax, 'width': xmax - xmin,
-                              'height': ymax - ymin, 'name': name })
+                              'height': ymax - ymin, 'class': name })
         return boxes
 
     def __init__(self, data_file=None):
