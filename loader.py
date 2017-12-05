@@ -86,8 +86,11 @@ def collate(batch):
     labels = autograd.Variable(torch.from_numpy(labels))
     return inputs, labels
 
-def make_loader(data_path, batch_size):
+def make_loader(data_path, batch_size, model):
     dataset = Dataset(data_path)
+    for i, b in enumerate(dataset):
+        dataset.data[i] = model.to_numpy(b)
+
     sampler = tud.sampler.RandomSampler(dataset)
     loader = tud.DataLoader(dataset,
                 batch_size=batch_size,

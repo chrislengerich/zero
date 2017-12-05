@@ -1,0 +1,44 @@
+{
+  "seed" : 2017,
+  "save_path": "model",
+
+  "data": {
+    "train_set": "data/train_car",
+    "dev_set": "data/val_car"
+  },
+
+  "optimizer" : {
+        "epochs" : 200,
+        "batch_size" : 2,
+        "learning_rate" : 1e-2,
+        "momentum" : 0.9
+  },
+
+  "model": {
+    "layers": [
+      {
+        "type": "conv",
+        "kernel": 7,
+        "filters": 64,
+        "stride": 2
+      },
+      {
+        "type": "maxpool",
+        "kernel": 2,
+        "stride": 2
+      },
+      {
+        "type": "conv",
+        "kernel": 2,
+        "filters": 192,
+        "stride": 1
+      },
+      {
+        "type": "maxpool",
+        "kernel": 2,
+        "stride": 2
+      }
+    ],
+    "in_channels": 3
+  }
+}

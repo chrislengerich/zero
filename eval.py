@@ -1,6 +1,26 @@
 import numpy as np
 import copy
 from loader import Dataset
+import tqdm
+
+def eval_loop(model, data_loader, use_cuda=True):
+    tq = tqdm.tqdm(data_loader)
+
+    losses = []
+    for x, y in tq:
+        if use_cuda:
+            x = x.cuda()
+            y = y.cuda()
+
+        out = model(x)
+        loss = model.loss.forward(out, y)
+        losses.append(loss)
+
+        # Convert from numpy representations to dictionary representations.
+
+    avg_loss = np.mean(loss)
+    return avg_loss
+
 
 # Given two sets of bounding boxes, return the mean average precision over all of the classes.
 def map(ground_truth, predictions):

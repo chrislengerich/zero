@@ -6,13 +6,13 @@ import json
 class BabyYolo(nn.Module):
 
     # Simple conv net.
-    def __init__(self, config_path, config=None):
+    def __init__(self, config_path=None, config=None):
         super(BabyYolo, self).__init__()
 
         if not config:
             with open(config_path, 'r') as fid:
                 config = json.load(fid)
-        self.config = config
+        config = config["model"]
 
         in_channels = config["in_channels"]
         convs = []
@@ -38,8 +38,12 @@ class BabyYolo(nn.Module):
         valid_bbs = [b for b in data_point['bounding_boxes'] if b['class'] == 'van']
 
         # for the moment, select the largest bounding box that's not "don't care".
+        # if there is no object, then set the detection to [0,0,0,0]
         boxes = sorted(valid_bbs, key=lambda x: x['width'] * x['height'], reverse=True)
-        box = boxes[0]
+        if len(boxes) == 0:
+            box = {'xmin': 0, 'xmax': 0, 'ymin': 0, 'ymax': 0}
+        else:
+            box = boxes[0]
 
         image_height = data_point['image'].shape[0]
         image_width = data_point['image'].shape[1]
