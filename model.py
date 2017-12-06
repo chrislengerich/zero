@@ -30,6 +30,7 @@ class BabyYolo(nn.Module):
 
         output_dim = 4 # [xmin, xmax, ymin, ymax]
         self.conv = nn.Sequential(*convs)
+        in_channels = 192*45*154 # channels x width x height
         self.fc = nn.Linear(in_channels, output_dim)
         self.loss = nn.MSELoss()
 
@@ -48,11 +49,11 @@ class BabyYolo(nn.Module):
         image_height = data_point['image'].shape[0]
         image_width = data_point['image'].shape[1]
         box_numpy = np.array([box['xmin'] / image_width, box['xmax'] / image_width, box['ymin'] / image_height,
-                              box['ymax'] / image_height])
-        return (data_point['image'], box_numpy)
+                              box['ymax'] / image_height]).astype(np.float32)
+        return (data_point['image'].astype(np.float32).transpose([2,0,1]), box_numpy)
 
     def from_numpy(self, np_data_point):
-        data = {'image': np_data_point[0]}
+        data = { 'image': np_data_point[0].astype(int).transpose([2,0,1]) }
 
         image_height = data['image'].shape[0]
         image_width = data['image'].shape[1]
@@ -70,6 +71,8 @@ class BabyYolo(nn.Module):
 
     def forward(self, images):
         out = self.conv(images)
+        b, c, x, y = out.shape # minibatch index, number of output filters, x and y translations of the image.
+        out = out.view(b, x*y*c)
         return self.fc(out)
 
 if __name__ == "__main__":

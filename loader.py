@@ -61,6 +61,9 @@ class Dataset(tud.Dataset):
             annotations = self._load_annotations(bb_path)
             bounding_boxes = self._parse_bounding_boxes(annotations)
             self.data.append({'image': self._load_image(im_path), 'annotations': annotations, 'bounding_boxes': bounding_boxes})
+
+            if not np.array_equal(self.data[-1]['image'].shape, [375, 1242, 3]):
+                del self.data[-1]
         print("%d data points loaded" % len(self.data))
 
     def __len__(self):
@@ -80,8 +83,8 @@ class Dataset(tud.Dataset):
 
 def collate(batch):
     inputs, labels = zip(*batch)
-    inputs = np.vstack(inputs)
-    labels = np.vstack(labels)
+    inputs = np.stack(inputs)
+    labels = np.stack(labels)
     inputs = autograd.Variable(torch.from_numpy(inputs))
     labels = autograd.Variable(torch.from_numpy(labels))
     return inputs, labels
