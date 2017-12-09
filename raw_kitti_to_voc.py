@@ -6,8 +6,7 @@ def _load_image(path):
     return cv2.imread(path)
 
 def _load_3d_coordinates(path):
-
-    # Load 3d coordinates from a tracklet file.
+    # Load velodyne 3d coordinates from a tracklet file.
     tree = et.parse(path)
     root = tree.getroot()
 
@@ -42,11 +41,7 @@ def _tracks_to_image_centroids(tracks, camera_matrix, velodyne_to_camera):
 
 def _load_camera_matrix(path):
     with open(path) as f:
-
-        K = None
         R = None
-        T = None
-
         lines = f.readlines()
         for l in lines:
             l = l.split()
@@ -63,6 +58,7 @@ def _load_camera_matrix(path):
     return P.dot(R_rect)
 
 def _load_velodyne_matrix(path):
+    # Load rotation and translation matrices mapping from Velodyne coordinates to camera 0 coordinates.
     with open(path) as f:
         lines = f.readlines()
         for l in lines:

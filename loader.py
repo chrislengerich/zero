@@ -10,8 +10,55 @@ from tqdm import tqdm
 import torch.autograd as autograd
 import torch
 import numpy as np
+import json
 
 import cv2
+
+# Dataset from Carla.
+class CarlaDataset(tud.Dataset):
+
+    def _load_image(self, path):
+        return cv2.imread(path)
+
+    def _load_depth_map(self, path):
+        # Return the decoded depth map (in meters).
+        img = cv2.imread(path)
+        R = img[:, :, 0]
+        G = img[:, :, 1]
+        B = img[:, :, 2]
+
+        depth = R + G * 256 + B * 256 * 256
+        depth = depth / float((256 * 256 * 256 - 1))
+        far = 1000
+        return depth * far
+
+    def _load_measurement(self, path):
+        with open(path) as f:
+            j = json.load(f)
+            return j
+
+    def _load_segmentation(self, path):
+        img = cv2.imread(path)
+        return img[:,:,2] # red channel
+
+    def _percent_car(self, img):
+        return sum(sum(img[:, :, 2] == 10)) / float(img.shape[0] * img.shape[1])
+
+    def __init__(self, rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths):
+        self.data = []
+        for rgb, depth, segment, measure in zip(rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths):
+            point = {}
+            point['rgb'] = self._load_image(rgb)
+            point['depth'] = self._load_depth_map(depth)
+            point['segment'] = self._load_segmentation(segment)
+            point['measure'] = self._load_measurement(measure)
+            self.data.append(point)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
 
 # VOC-formatted data
 class Dataset(tud.Dataset):
@@ -115,4 +162,11 @@ if __name__ == '__main__':
     print(d[0])
 
     # Data loader
-    print(make_loader("/home/ubuntu/zero/data/trainval_car", 48))
+    #print(make_loader("/home/ubuntu/zero/data/trainval_car", 48))
+
+    # Single data point of a Carla dataset.
+    d = CarlaDataset(["/home/ubuntu/zero/_images/episode_000/CameraRGB/image_00096.png"],
+                      ["/home/ubuntu/zero/_images/episode_000/CameraDepth/image_00096.png"],
+                      ["/home/ubuntu/zero/_images/episode_000/CameraSegment/image_00096.png"],
+                      ["/home/ubuntu/zero/_measurements/measurement_00096.json"])
+    print(d[0])
