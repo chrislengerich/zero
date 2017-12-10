@@ -46,10 +46,10 @@ class CarlaDataset(tud.Dataset):
 
     def _load_segmentation(self, path):
         img = cv2.imread(path)
-        return img[:,:,2] # red channel
+        return img[:,:,2].astype(float) # red channel
 
-    def _percent_car(self, img):
-        return sum(sum(img[:, :, 2] == 10)) / float(img.shape[0] * img.shape[1])
+    def _percent_car(self, segment):
+        return sum(sum(segment == 10)) / float(segment.shape[0] * segment.shape[1])
 
     def __init__(self, rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths):
         self.data = []
@@ -72,7 +72,12 @@ class CarlaDataset(tud.Dataset):
         ax.imshow(self.data[idx]['rgb'])
         fig, ax = plt.subplots(1)
         ax.imshow(np.log(self.data[idx]['depth']))
+        fig, ax = plt.subplots(1)
+        ax.imshow(np.log(self.data[idx]['segment']))
+        print("{0} car".format(self._percent_car(self.data[idx]['segment'])))
         plt.show()
+
+
 
 
 # VOC-formatted data
