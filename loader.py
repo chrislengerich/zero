@@ -13,16 +13,21 @@ import numpy as np
 import json
 
 import cv2
+from PIL import Image
 
 # Dataset from Carla.
 class CarlaDataset(tud.Dataset):
 
     def _load_image(self, path):
-        return cv2.imread(path)
+        img = Image.open(path)
+        return np.asarray(img)
 
     def _load_depth_map(self, path):
-        # Return the decoded depth map (in meters).
-        img = cv2.imread(path)
+        # Return the decoded depth map as a 2D numpy array (in meters).
+        # See http://carla.readthedocs.io/en/latest/cameras_and_sensors/
+        img = Image.open(path)
+        img = np.asarray(img).astype(float)
+
         R = img[:, :, 0]
         G = img[:, :, 1]
         B = img[:, :, 2]
@@ -30,7 +35,9 @@ class CarlaDataset(tud.Dataset):
         depth = R + G * 256 + B * 256 * 256
         depth = depth / float((256 * 256 * 256 - 1))
         far = 1000
-        return depth * far
+        depth *= far
+
+        return depth
 
     def _load_measurement(self, path):
         with open(path) as f:
@@ -59,6 +66,14 @@ class CarlaDataset(tud.Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx]
+
+    def view(self, idx):
+        fig, ax = plt.subplots(1)
+        ax.imshow(self.data[idx]['rgb'])
+        fig, ax = plt.subplots(1)
+        ax.imshow(np.log(self.data[idx]['depth']))
+        plt.show()
+
 
 # VOC-formatted data
 class Dataset(tud.Dataset):
