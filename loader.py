@@ -11,6 +11,7 @@ import torch.autograd as autograd
 import torch
 import numpy as np
 import json
+import imageio
 
 import cv2
 from PIL import Image
@@ -49,24 +50,33 @@ class CarlaDataset(tud.Dataset):
         return img[:,:,2].astype(float) # red channel
 
     def _percent_car(self, segment):
+        # Return a float represented the fraction of the image that is a car, based on the
+        # ground-truth semantic segmentation.
         return sum(sum(segment == 10)) / float(segment.shape[0] * segment.shape[1])
 
-    def _load(self, rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths):
+    def _load(self, rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths, episode_names):
         assert len(rgb_camera_paths) == len(depth_camera_paths)
         assert len(depth_camera_paths) == len(segmentation_camera_paths)
         assert len(segmentation_camera_paths) == len(measurement_paths)
 
-        self.data = []
-        for rgb, depth, segment, measure in tqdm(zip(rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths)):
+        self.episodes = {} # index over all episodes.
+        self.data = [] # index over all data points.
+
+        for rgb, depth, segment, measure, episode_name in tqdm(zip(rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths, episode_names)):
             point = {}
             point['rgb'] = self._load_image(rgb)
             point['depth'] = self._load_depth_map(depth)
             point['segment'] = self._load_segmentation(segment)
             point['measure'] = self._load_measurement(measure)
+            point['episode_name'] = episode_name
+
+            if episode_name not in self.episodes:
+                self.episodes[episode_name] = []
+            self.episodes[episode_name].append(point)
+
             self.data.append(point)
 
     def __init__(self, data_file=None):
-        print("Hello!")
         images_base = "/home/ubuntu/zero/data/_images"
         measurements_base = "/home/ubuntu/zero/data/_measurements"
 
@@ -76,12 +86,25 @@ class CarlaDataset(tud.Dataset):
         depth_paths = []
         seg_paths = []
         measure_paths = []
+        episode_names = []
 
         if data_file:
             with open(data_file) as f:
                 prefixes = f.readlines()
+
+                episode_name = int(prefixes[0])
+                current_frames = 0
+
                 for p in prefixes:
                     p.strip()
+
+                    # Split up data into episodes consisting of sequential frames.
+                    candidate_frame = int(p)
+                    if episode_name + current_frames != candidate_frame:
+                        episode_name = candidate_frame
+                        current_frames = 0
+                    current_frames += 1
+
                     rgb_paths.append(os.path.join(images_base, "episode_000", "CameraRGB", image_format.format(p.strip())))
                     depth_paths.append(
                         os.path.join(images_base, "episode_000", "CameraDepth", image_format.format(p.strip())))
@@ -89,13 +112,34 @@ class CarlaDataset(tud.Dataset):
                         os.path.join(images_base, "episode_000", "CameraSegment", image_format.format(p.strip())))
                     measure_paths.append(
                         os.path.join(measurements_base, "measurement_{0}.json".format(p.strip())))
-            self._load(rgb_paths, depth_paths, seg_paths, measure_paths)
+                    episode_names.append(
+                        episode_name
+                    )
+            self._load(rgb_paths, depth_paths, seg_paths, measure_paths, episode_names)
 
     def __len__(self):
-        return len(self.data)
+        return len(self.episodes)
 
     def __getitem__(self, idx):
         return self.data[idx]
+
+    def get_episode(self, idx):
+        episode_list = sorted(self.episodes.keys())
+        return self.episodes[episode_list[idx]]
+
+    def view_episode(self, idx):
+        # Render a gif of the episode.
+        episode = self.get_episode(idx)
+        if not os.path.exists("tmp"):
+            os.mkdir("tmp")
+        path = 'tmp/rgb_{0}.gif'.format(idx)
+        imageio.mimsave(path, [p['rgb'] for p in episode])
+        return self.view_gif(path)
+
+    def view_gif(self, path):
+        # Return the HTML tags to render a gif.
+        from IPython.display import HTML
+        return HTML('<img src="{0}">'.format(path))
 
     def view(self, idx):
         fig, ax = plt.subplots(1)
@@ -217,8 +261,9 @@ if __name__ == '__main__':
     d._load(["/home/ubuntu/zero/data/_images/episode_000/CameraRGB/image_00096.png"],
                       ["/home/ubuntu/zero/data/_images/episode_000/CameraDepth/image_00096.png"],
                       ["/home/ubuntu/zero/data/_images/episode_000/CameraSegment/image_00096.png"],
-                      ["/home/ubuntu/zero/data/_measurements/measurement_00096.json"])
+                      ["/home/ubuntu/zero/data/_measurements/measurement_00096.json"],
+                      ["00096"])
     print(d[0])
 
     d = CarlaDataset("/home/ubuntu/zero/data/val_carla_single_car")
-    print(d[0])
+    print(sorted(d.episodes.keys()))
