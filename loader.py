@@ -51,15 +51,45 @@ class CarlaDataset(tud.Dataset):
     def _percent_car(self, segment):
         return sum(sum(segment == 10)) / float(segment.shape[0] * segment.shape[1])
 
-    def __init__(self, rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths):
+    def _load(self, rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths):
+        assert len(rgb_camera_paths) == len(depth_camera_paths)
+        assert len(depth_camera_paths) == len(segmentation_camera_paths)
+        assert len(segmentation_camera_paths) == len(measurement_paths)
+
         self.data = []
-        for rgb, depth, segment, measure in zip(rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths):
+        for rgb, depth, segment, measure in tqdm(zip(rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths)):
             point = {}
             point['rgb'] = self._load_image(rgb)
             point['depth'] = self._load_depth_map(depth)
             point['segment'] = self._load_segmentation(segment)
             point['measure'] = self._load_measurement(measure)
             self.data.append(point)
+
+    def __init__(self, data_file=None):
+        print("Hello!")
+        images_base = "/home/ubuntu/zero/data/_images"
+        measurements_base = "/home/ubuntu/zero/data/_measurements"
+
+        image_format = "image_{0}.png"
+
+        rgb_paths = []
+        depth_paths = []
+        seg_paths = []
+        measure_paths = []
+
+        if data_file:
+            with open(data_file) as f:
+                prefixes = f.readlines()
+                for p in prefixes:
+                    p.strip()
+                    rgb_paths.append(os.path.join(images_base, "episode_000", "CameraRGB", image_format.format(p.strip())))
+                    depth_paths.append(
+                        os.path.join(images_base, "episode_000", "CameraDepth", image_format.format(p.strip())))
+                    seg_paths.append(
+                        os.path.join(images_base, "episode_000", "CameraSegment", image_format.format(p.strip())))
+                    measure_paths.append(
+                        os.path.join(measurements_base, "measurement_{0}.json".format(p.strip())))
+            self._load(rgb_paths, depth_paths, seg_paths, measure_paths)
 
     def __len__(self):
         return len(self.data)
@@ -76,8 +106,6 @@ class CarlaDataset(tud.Dataset):
         ax.imshow(np.log(self.data[idx]['segment']))
         print("{0} car".format(self._percent_car(self.data[idx]['segment'])))
         plt.show()
-
-
 
 
 # VOC-formatted data
@@ -178,15 +206,19 @@ if __name__ == '__main__':
     print(d[0])
 
     # Dataset file.
-    d = Dataset("/home/ubuntu/zero/data/trainval_car")
-    print(d[0])
+    # d = Dataset("/home/ubuntu/zero/data/trainval_car")
+    # print(d[0])
 
     # Data loader
     #print(make_loader("/home/ubuntu/zero/data/trainval_car", 48))
 
     # Single data point of a Carla dataset.
-    d = CarlaDataset(["/home/ubuntu/zero/_images/episode_000/CameraRGB/image_00096.png"],
-                      ["/home/ubuntu/zero/_images/episode_000/CameraDepth/image_00096.png"],
-                      ["/home/ubuntu/zero/_images/episode_000/CameraSegment/image_00096.png"],
-                      ["/home/ubuntu/zero/_measurements/measurement_00096.json"])
+    d = CarlaDataset()
+    d._load(["/home/ubuntu/zero/data/_images/episode_000/CameraRGB/image_00096.png"],
+                      ["/home/ubuntu/zero/data/_images/episode_000/CameraDepth/image_00096.png"],
+                      ["/home/ubuntu/zero/data/_images/episode_000/CameraSegment/image_00096.png"],
+                      ["/home/ubuntu/zero/data/_measurements/measurement_00096.json"])
+    print(d[0])
+
+    d = CarlaDataset("/home/ubuntu/zero/data/val_carla_single_car")
     print(d[0])
