@@ -42,7 +42,7 @@ class CarlaDataset(tud.Dataset):
 
     def _load_measurement(self, path):
         with open(path) as f:
-            j = json.load(f)
+            j = json.loads(json.load(f))
             return j
 
     def _load_segmentation(self, path):
@@ -123,6 +123,117 @@ class CarlaDataset(tud.Dataset):
     def __getitem__(self, idx):
         return self.data[idx]
 
+    def car_locations(self, idx):
+        d = self.data[idx]
+        measurements = d['measure']
+        non_player_agents = measurements['nonPlayerAgents']
+        cars = filter(lambda x: "vehicle" in x, non_player_agents)
+        return cars
+
+    def get_3d_transform(self, idx):
+        return self.data[idx]["measure"]["playerMeasurements"]["transform"]
+
+    def orientation_to_rotation(self, orientation):
+        # Transform a 2D orientation vector of the primary vehicle axis into the 3D rotation matrix for the points.
+        # The 2d coordinate specify the unit vector for the rotation around the Z-axis.
+
+        theta_radians = np.arctan2(-orientation["y"], orientation["x"])
+        twod_rotation = cv2.getRotationMatrix2D((0,0), 180 * (theta_radians / np.pi), 1)
+        threed_rotation = np.eye(4,4)
+        threed_rotation[0:2:,0:2] = twod_rotation[:,0:2]
+        return threed_rotation
+
+    def location_to_translation(self, location):
+        # Translate a 3d location vector into a 4x4 translation matrix.
+        m = np.eye(4,4)
+        m[0:3, 3] = location
+        return m
+
+    def camera_location_camera(self, idx):
+        # Return the location of the world origin in camera coordinates.
+        transform = self.get_3d_transform(idx)
+        location = transform["location"]
+        location = np.array([location["x"], location["y"], location["z"]])
+
+        # CameraPositionX=240
+        # CameraPositionY=0
+        # CameraPositionZ=260
+        # CameraRotationPitch = 0
+        # CameraRotationRoll = 0
+        # CameraRotationYaw = 0
+
+        # CameraPosition is specified in vehicle coordinates.
+        # Hard-coded for now.
+        vehicle_to_camera_translation_world = self.orientation_to_rotation(transform["orientation"]).dot([240., 0, 260, 1])
+        camera_location_world = location + vehicle_to_camera_translation_world[0:3]
+        world_to_camera_rotation = self.get_rotation(idx)
+        world_origin_translation_camera = world_to_camera_rotation.dot(camera_location_world)
+        return -world_origin_translation_camera
+
+    def get_rotation(self, idx):
+        transform = self.get_3d_transform(idx)
+        #rotation_vehicle = self.orientation_to_rotation(transform["orientation"])
+        # 90-degree rotation about the X-axis.
+        angle = np.pi / 2
+        rotation_camera = np.array([
+            [1, 0, 0],
+            [0, np.cos(angle), -np.sin(angle)],
+            [0, np.sin(angle), np.cos(angle)]
+        ])
+
+        # left-handed coordinate system for UnrealEngine
+        rotation_right_to_left = np.array([
+            [-1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1]
+        ])
+
+        return rotation_right_to_left.dot(rotation_camera)
+
+    def world_to_camera_external(self, idx, coordinates):
+        camera_location_camera = self.camera_location_camera(idx)
+        translation = self.location_to_translation(camera_location_camera)
+        translation = translation[0:3,:]
+        rotation = np.eye(4)
+        rotation[0:3, 0:3] = self.get_rotation(idx)
+        return translation.dot(rotation.dot(coordinates))
+
+    def world_to_image(self, idx, coordinates):
+        twod = self.camera_intrinsic().dot(self.world_to_camera_external(idx, coordinates))
+        twod /= twod[2]
+        return twod
+
+    def camera_intrinsic(self):
+        ImageSizeX = 800
+        ImageSizeY = 600
+        CameraFOV = 90
+
+        Focus_length = ImageSizeX / (2 * np.tan(CameraFOV * np.pi / 360))
+        Center_X = ImageSizeX / 2
+        Center_Y = ImageSizeY / 2
+        intrinsic = np.eye(3)
+        intrinsic[0, 0] = Focus_length
+        intrinsic[1, 1] = Focus_length
+        intrinsic[0, 2] = Center_X
+        intrinsic[1, 2] = Center_Y
+        return intrinsic
+
+    # Return the closest moving cars. Data also includes ego-coordinates and stopped cars out of the camera view.
+    def closest_cars(self, idx):
+        other_cars = self.car_locations(idx)
+        player_transform =  self.get_3d_transform(idx)
+        my_pos = np.array([player_transform["location"]["x"], player_transform["location"]["y"], player_transform["location"]["z"]])
+
+        distances = []
+        for c in other_cars:
+           vehicle_transform = c["vehicle"]["transform"]
+           pos = np.array([vehicle_transform["location"]["x"], vehicle_transform["location"]["y"], vehicle_transform["location"]["z"]])
+           dist = np.linalg.norm(my_pos - pos)
+
+           distances.append({ "dist": dist, "world_position": pos, "camera_position": pos - my_pos , "id": c["id"], "forward_speed": c["vehicle"].get("forwardSpeed", 0)})
+        distances = filter(lambda x: x["forward_speed"] > 20, distances)
+        return sorted(distances, key=lambda x: x["dist"])
+
     def get_episode(self, idx):
         episode_list = sorted(self.episodes.keys())
         return self.episodes[episode_list[idx]]
@@ -144,6 +255,13 @@ class CarlaDataset(tud.Dataset):
     def view(self, idx):
         fig, ax = plt.subplots(1)
         ax.imshow(self.data[idx]['rgb'])
+
+        # Get the location of the closest car in homogeneous coordinates, and plot it as a bounding box.
+        location = np.ones((4,1)).flatten()
+        location[0:3] = self.closest_cars(idx)[0]["world_position"]
+        image_coords = self.world_to_image(idx, location)
+        rect = patches.Rectangle((image_coords[0], image_coords[1]), 10, 10, linewidth=1, edgecolor='r', facecolor='none')
+        ax.add_patch(rect)
         fig, ax = plt.subplots(1)
         ax.imshow(np.log(self.data[idx]['depth']))
         fig, ax = plt.subplots(1)
@@ -265,5 +383,22 @@ if __name__ == '__main__':
                       ["00096"])
     print(d[0])
 
+    coordinates = [ 244.23930359,  16601.0859375 ,   3806 ]
+
     d = CarlaDataset("/home/ubuntu/zero/data/val_carla_single_car")
-    print(sorted(d.episodes.keys()))
+
+    print(d.world_to_camera_external(0, [ 244.23930359,  16601.0859375 , 3806, 1 ]))
+    print(d.world_to_image(0, [ 244.23930359,  16601.0859375 , 3806, 1 ]))
+
+
+    # for i in range(12):
+    #     #print(i)
+    #     closest_car_location = d.closest_cars(i)[0]["world_position"]
+    #     #print(closest_car_location)
+    #     print(d.threed_world_to_threed_camera(i, closest_car_location)[0:3])
+
+    #print(sorted(d.episodes.keys()))
+    #print(d.car_locations(0))
+    #print(d.closest_cars(0))
+
+    #print(d.orientation_to_rotation({ "x": -1, "y": 0 }))

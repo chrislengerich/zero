@@ -75,6 +75,7 @@ class BabyYolo(nn.Module):
         out = out.view(b, x*y*c)
         return self.fc(out)
 
+
 if __name__ == "__main__":
     d = Dataset()
     d._load(['/home/ubuntu/zero_label/data/VOCdevkit/VOC2007.kitti/JPEGImages/0000-000000.png'],
