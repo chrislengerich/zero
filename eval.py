@@ -14,11 +14,8 @@ def eval_loop(model, data_loader, use_cuda=True):
 
         out = model(x)
         loss = model.loss.forward(out, y)
-        losses.append(loss)
-
-        # Convert from numpy representations to dictionary representations.
-
-    avg_loss = np.mean(loss)
+        losses.append(loss.data[0])
+    avg_loss = np.mean(losses)
     return avg_loss
 
 

@@ -15,7 +15,7 @@ import extrapolate
 
 use_cuda = True
 
-def run_epoch(model, optimizer, train_ldr, it, avg_loss):
+def run_epoch(model, optimizer, train_ldr, it, avg_loss, train=True):
     tq = tqdm.tqdm(train_ldr)
     for x, y in tq:
         if use_cuda:
@@ -81,8 +81,9 @@ def run(config):
         msg = "Epoch {} completed in {:.2f} (s)."
         print(msg.format(e, time.time() - start))
 
-        # dev_loss, dev_map, preds, labels = eval_loop(model, dev_ldr)
-        #
+        dev_loss = eval_loop(model, dev_ldr)
+        print("Dev Loss: {:.2f}".format(dev_loss))
+
         # # Log for tensorboard
         # tb.log_value("dev_loss", dev_loss, e)
         # tb.log_value("dev_map", dev_map, e)
