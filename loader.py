@@ -13,6 +13,7 @@ import numpy as np
 import json
 import imageio
 import extrapolate
+import pprint
 
 import cv2
 from PIL import Image
@@ -296,6 +297,8 @@ class CarlaDataset(tud.Dataset):
             ax.add_patch(rect)
 
         plt.show()
+        print("Loss: {0}".format(extrapolate.loss(extrapolated_image, locations_image)))
+        pprint.pprint(extrapolated_image)
 
     def view_episode(self, idx):
         # Render a gif of the episode.

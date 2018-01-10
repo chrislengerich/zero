@@ -12,7 +12,7 @@ def linear(p0, p1, timesteps):
     return predictions
 
 def loss(predictions, extrapolations):
-    return np.linalg.norm(predictions - extrapolations)
+    return np.linalg.norm(np.array(predictions) - np.array(extrapolations))
 
 if __name__ == "__main__":
     p0 = np.array([1,2,3])
