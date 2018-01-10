@@ -11,7 +11,13 @@ def linear(p0, p1, timesteps):
         predictions[i, :] = p0 + i * velocity
     return predictions
 
+def loss(predictions, extrapolations):
+    return np.linalg.norm(predictions - extrapolations)
+
 if __name__ == "__main__":
     p0 = np.array([1,2,3])
     p1 = np.array([1,3,9])
-    print linear(p0, p1, 5)
+    print linear(p0, p1, 3)
+
+    predictions = np.array([[1,2,3],[1,3,9], [1,5,17]])
+    print loss(predictions, linear(p0, p1, 3))
