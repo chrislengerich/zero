@@ -11,6 +11,14 @@ def linear(p0, p1, timesteps):
         predictions[i, :] = p0 + i * velocity
     return predictions
 
+def linear_3d(p_image, timesteps, loader, idx):
+    # Given two image points, return their linear extrapolation in image coordinates
+    assert len(p_image) == 2
+    p_world = [loader.image_to_world(idx, p_im) for p_im in p_image]
+    ext = linear(p_world[0], p_world[1], timesteps)
+    ext_image = [loader.world_to_image(idx, c) for c in ext]
+    return ext_image
+
 def loss(predictions, extrapolations):
     return np.linalg.norm(np.array(predictions) - np.array(extrapolations))
 

@@ -77,6 +77,7 @@ class CarlaDataset(tud.Dataset):
             self.episodes[episode_name].append(point)
 
             self.data.append(point)
+            point['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
 
     def __init__(self, data_file=None):
         images_base = "/home/ubuntu/zero/data/_images"
@@ -269,6 +270,10 @@ class CarlaDataset(tud.Dataset):
         lengths.append(0)
         return np.sum(lengths)
 
+    def closest_car_centroid_image(self, idx):
+        location = np.array(self.closest_cars(idx)[0]["world_position"])
+        return self.world_to_image(idx, location)
+
     def view_extrapolated(self, idx):
         episode = self.get_episode(idx)
         assert len(episode) > 2
@@ -410,6 +415,18 @@ def collate(batch):
 
 def make_loader(data_path, batch_size, model):
     dataset = Dataset(data_path)
+    for i, b in enumerate(dataset):
+        dataset.data[i] = model.to_numpy(b)
+
+    sampler = tud.sampler.RandomSampler(dataset)
+    loader = tud.DataLoader(dataset,
+                batch_size=batch_size,
+                sampler=sampler,
+                collate_fn=collate)
+    return loader
+
+def make_loader(data_path, batch_size, model):
+    dataset = CarlaDataset(data_path)
     for i, b in enumerate(dataset):
         dataset.data[i] = model.to_numpy(b)
 

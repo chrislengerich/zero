@@ -1,0 +1,141 @@
+{
+  "seed" : 2017,
+  "save_path": "model_physics",
+
+  "data": {
+    "train_set": "data/train_carla_single_car",
+    "dev_set": "data/val_carla_single_car"
+  },
+
+  "optimizer" : {
+        "epochs" : 200,
+        "batch_size" : 10,
+        "learning_rate" : 1e-2,
+        "momentum" : 0.9
+  },
+
+  "model": {
+    "layers": [
+      {
+        "type": "conv",
+        "kernel": 7,
+        "filters": 64,
+        "stride": 2
+      },
+      {
+        "type": "maxpool",
+        "kernel": 2,
+        "stride": 2
+      },
+      {
+        "type": "conv",
+        "kernel": 3,
+        "filters": 192,
+        "stride": 1
+      },
+      {
+        "type": "maxpool",
+        "kernel": 2,
+        "stride": 2
+      },
+      {
+        "type": "conv",
+        "kernel": 1,
+        "filters": 128,
+        "stride": 1
+      },
+      {
+        "type": "conv",
+        "kernel": 3,
+        "filters": 256,
+        "stride": 1
+      },
+      {
+        "type": "conv",
+        "kernel": 1,
+        "filters": 256,
+        "stride": 1
+      },
+      {
+        "type": "conv",
+        "kernel": 3,
+        "filters": 512,
+        "stride": 1
+      },
+      {
+        "type": "maxpool",
+        "kernel": 2,
+        "stride": 2
+      },
+      {
+        "type": "conv",
+        "kernel": 1,
+        "filters": 256,
+        "stride": 1
+      },
+      {
+        "type": "conv",
+        "kernel": 3,
+        "filters": 512,
+        "stride": 1
+      },
+      {
+        "type": "conv",
+        "kernel": 1,
+        "filters": 512,
+        "stride": 1
+      },
+      {
+        "type": "conv",
+        "kernel": 3,
+        "filters": 1024,
+        "stride": 1
+      },
+      {
+        "type": "maxpool",
+        "kernel": 2,
+        "stride": 2
+      },
+
+      {
+        "type": "conv",
+        "kernel": 1,
+        "filters": 512,
+        "stride": 1
+      },
+      {
+        "type": "conv",
+        "kernel": 3,
+        "filters": 1024,
+        "stride": 1
+      },
+      {
+        "type": "conv",
+        "kernel": 3,
+        "filters": 1024,
+        "stride": 1
+      },
+      {
+        "type": "conv",
+        "kernel": 3,
+        "filters": 1024,
+        "stride": 2
+      },
+
+      {
+        "type": "conv",
+        "kernel": 3,
+        "filters": 1024,
+        "stride": 1
+      },
+      {
+        "type": "conv",
+        "kernel": 3,
+        "filters": 1024,
+        "stride": 1
+      }
+
+    ],
+    "in_channels": 3
+  }
+}
