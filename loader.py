@@ -12,6 +12,7 @@ import torch
 import numpy as np
 import json
 import imageio
+import extrapolate
 
 import cv2
 from PIL import Image
@@ -261,6 +262,38 @@ class CarlaDataset(tud.Dataset):
     def get_episode(self, idx):
         episode_list = sorted(self.episodes.keys())
         return self.episodes[episode_list[idx]]
+
+    def get_episode_frame_idx(self, idx):
+        lengths = [len(self.get_episode(i)) for i in range(idx-1)]
+        lengths.append(0)
+        return np.sum(lengths)
+
+    def view_extrapolated(self, idx):
+        episode = self.get_episode(idx)
+        assert len(episode) > 2
+
+        steps = 5
+        first_frame_idx = self.get_episode_frame_idx(idx)
+        frame_idxs = np.arange(first_frame_idx, first_frame_idx + steps)
+        locations = [np.array(self.closest_cars(i)[0]["world_position"]) for i in frame_idxs]
+        locations_image = [self.world_to_image(i,c) for (i,c) in zip(frame_idxs, locations)]
+
+        extrapolated_world = extrapolate.linear(locations[0], locations[1], 5)
+        extrapolated_image = [self.world_to_image(i,c) for (i,c) in zip(frame_idxs, extrapolated_world)]
+
+        fig, ax = plt.subplots(1)
+        ax.imshow(self.data[idx]['rgb'])
+        for im in extrapolated_image:
+            rect = patches.Rectangle((im[0], im[1]), 10, 10, linewidth=1, edgecolor='r',
+                                     facecolor='none')
+            ax.add_patch(rect)
+
+        for loc_im in locations_image:
+            rect = patches.Rectangle((loc_im[0], loc_im[1]), 10, 10, linewidth=1, edgecolor='g',
+                                     facecolor='none', alpha=0.5)
+            ax.add_patch(rect)
+
+        plt.show()
 
     def view_episode(self, idx):
         # Render a gif of the episode.
