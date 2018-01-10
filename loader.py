@@ -149,8 +149,8 @@ class CarlaDataset(tud.Dataset):
         m[0:3, 3] = location
         return m
 
-    def camera_location_camera(self, idx):
-        # Return the location of the world origin in camera coordinates.
+    def camera_origin_world(self, idx):
+        # Return the location of the camera origin in world coordinates.
         transform = self.get_3d_transform(idx)
         location = transform["location"]
         location = np.array([location["x"], location["y"], location["z"]])
@@ -165,14 +165,20 @@ class CarlaDataset(tud.Dataset):
         # CameraPosition is specified in vehicle coordinates.
         # Hard-coded for now.
         vehicle_to_camera_translation_world = self.orientation_to_rotation(transform["orientation"]).dot([240., 0, 260, 1])
-        camera_location_world = location + vehicle_to_camera_translation_world[0:3]
+        return location + vehicle_to_camera_translation_world[0:3]
+
+    def camera_location_camera(self, idx):
+        # Return the location of the world origin in camera coordinates.
+        camera_origin_world = self.camera_origin_world(idx)
         world_to_camera_rotation = self.get_rotation(idx)
-        world_origin_translation_camera = world_to_camera_rotation.dot(camera_location_world)
+        world_origin_translation_camera = world_to_camera_rotation.dot(camera_origin_world)
         return -world_origin_translation_camera
 
     def get_rotation(self, idx):
+        # TODO: Adapt this based on the orientation of the vehicle (hard-coded for now).
         transform = self.get_3d_transform(idx)
         #rotation_vehicle = self.orientation_to_rotation(transform["orientation"])
+
         # 90-degree rotation about the X-axis.
         angle = np.pi / 2
         rotation_camera = np.array([
@@ -190,18 +196,36 @@ class CarlaDataset(tud.Dataset):
 
         return rotation_right_to_left.dot(rotation_camera)
 
-    def world_to_camera_external(self, idx, coordinates):
+    def world_to_camera(self, idx, coordinates):
+        # Transform world coordinates into camera coordinates.
+        homogenous_coordinates = np.ones((4, 1)).flatten()
+        homogenous_coordinates[0:3] = coordinates
         camera_location_camera = self.camera_location_camera(idx)
         translation = self.location_to_translation(camera_location_camera)
         translation = translation[0:3,:]
         rotation = np.eye(4)
         rotation[0:3, 0:3] = self.get_rotation(idx)
-        return translation.dot(rotation.dot(coordinates))
+        return translation.dot(rotation.dot(homogenous_coordinates))
 
     def world_to_image(self, idx, coordinates):
-        twod = self.camera_intrinsic().dot(self.world_to_camera_external(idx, coordinates))
+        twod = self.camera_intrinsic().dot(self.world_to_camera(idx, coordinates))
         twod /= twod[2]
         return twod
+
+    def image_to_world(self, idx, coordinates):
+        # Transform image coordinates into world coordinates using a depth map.
+
+        # depth matrix is (y,x) indexed
+        depth = self.data[idx]['depth'][int(coordinates[1]), int(coordinates[0])]
+        rotation = self.get_rotation(idx)
+        instrinsic = self.camera_intrinsic()
+        inverse = np.linalg.inv(instrinsic.dot(rotation))
+        coordinates = np.concatenate((coordinates, [1]))
+        w = depth / np.linalg.norm(inverse.dot(coordinates))
+        C = self.camera_origin_world(idx)
+        world_coordinates = w * inverse.dot(coordinates) + C
+
+        return world_coordinates
 
     def camera_intrinsic(self):
         ImageSizeX = 800
@@ -387,7 +411,7 @@ if __name__ == '__main__':
 
     d = CarlaDataset("/home/ubuntu/zero/data/val_carla_single_car")
 
-    print(d.world_to_camera_external(0, [ 244.23930359,  16601.0859375 , 3806, 1 ]))
+    print(d.world_to_camera(0, [244.23930359, 16601.0859375 , 3806, 1]))
     print(d.world_to_image(0, [ 244.23930359,  16601.0859375 , 3806, 1 ]))
 
 
