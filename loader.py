@@ -282,7 +282,9 @@ class CarlaDataset(tud.Dataset):
         extrapolated_image = [self.world_to_image(i,c) for (i,c) in zip(frame_idxs, extrapolated_world)]
 
         fig, ax = plt.subplots(1)
-        ax.imshow(self.data[idx]['rgb'])
+        ax.imshow(self.data[frame_idxs[0]]['rgb'])
+        for i in [4]:
+            ax.imshow(self.data[frame_idxs[i]]['rgb'], alpha=0.2)
         for im in extrapolated_image:
             rect = patches.Rectangle((im[0], im[1]), 10, 10, linewidth=1, edgecolor='r',
                                      facecolor='none')
