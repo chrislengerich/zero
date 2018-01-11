@@ -10,12 +10,14 @@ import json
 from eval import eval_loop
 from physics_model import LinearModel
 import extrapolate
+import copy
+import numpy as np
 
 # Training code for the physics-based model
 
 use_cuda = True
 
-def run_epoch(model, optimizer, train_ldr, it, avg_loss, train=True):
+def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
     tq = tqdm.tqdm(train_ldr)
     for x, y in tq:
         if use_cuda:
@@ -28,25 +30,59 @@ def run_epoch(model, optimizer, train_ldr, it, avg_loss, train=True):
         # y is the ground-truth labels.
         # y_ext is are y-labels predicted by extrapolation.
 
-        # assert len(yhat) > 2
-        # episode_size = 5
-        # loader_index = 0
-        # y_ext = extrapolate.linear_3d([yhat[0, :], yhat[1, :]], episode_size, train_ldr, loader_index)
+        episode_size = 3
+        if yhat.shape != (episode_size, 2):
+            continue
+        #assert yhat.shape == (episode_size, 2), yhat.shape
 
+        # TODO: change this if our camera ends up in a different position.
+        fixed_loader_index = 0
+        yhat = torch.clamp(yhat, 0, 0.99)
+        yhat_coords = copy.deepcopy(yhat.data.cpu().numpy())
+
+        image_width = 800
+        image_height = 600
+
+        # clamp values in-bounds for the depth map
+        yhat_coords[:,0] = yhat_coords[:,0] * image_width
+        yhat_coords[:,1] = yhat_coords[:,1] * image_height
+
+        y_ext = extrapolate.linear_image([yhat_coords[0,:], yhat_coords[1,:]], episode_size, train_ldr.sampler.data_source, fixed_loader_index)
+        y_ext = np.array(y_ext)
+
+        print("y")
         print(y)
-        print(yhat)
-        loss = model.loss.forward(yhat, y)
-        loss.backward()
 
+        print("yhat")
+        print(yhat)
+
+        print("yhat_coords")
+        print(yhat_coords)
+
+        print("y_ext")
+        print(y_ext)
+
+        print("y_ext_var")
+        y_ext[:, 0] /= image_width
+        y_ext[:, 1] /= image_height
+        y_ext = torch.autograd.Variable(torch.from_numpy(y_ext[:, 0:2].astype(np.float32)), requires_grad=False).cuda()
+        print(y_ext)
+
+        pseudo_loss = model.loss.forward(yhat, y_ext)
+        pseudo_loss.backward()
         optimizer.step()
 
         exp_w = 0.99
+        avg_pseudo_loss = exp_w * avg_pseudo_loss + (1 - exp_w) * pseudo_loss.data[0]
+        tb.log_value('pseudo_loss', pseudo_loss.data[0], it)
+
+        loss = model.loss.forward(yhat, y)
         avg_loss = exp_w * avg_loss + (1 - exp_w) * loss.data[0]
-        tb.log_value('train_loss', loss.data[0], it)
-        tq.set_postfix(iter=it, loss=loss.data[0], avg_loss=avg_loss)
+
+        tq.set_postfix(iter=it, pseudo_loss=pseudo_loss.data[0], avg_pseudo_loss=avg_pseudo_loss, avg_loss=avg_loss)
         it += 1
 
-    return it, avg_loss
+    return it, avg_pseudo_loss, avg_loss
 
 
 def run(config):
@@ -71,7 +107,7 @@ def run(config):
                     lr=opt_cfg["learning_rate"],
                     momentum=opt_cfg["momentum"])
 
-    run_state = (0, 0)
+    run_state = (0, 0, 0)
     best_so_far = float("inf")
     for e in range(opt_cfg["epochs"]):
         start = time.time()

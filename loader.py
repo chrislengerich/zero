@@ -14,6 +14,7 @@ import json
 import imageio
 import extrapolate
 import pprint
+import copy
 
 import cv2
 from PIL import Image
@@ -63,6 +64,10 @@ class CarlaDataset(tud.Dataset):
 
         self.episodes = {} # index over all episodes.
         self.data = [] # index over all data points.
+        self._data = [] # auxilary information to persist
+
+        episode = []
+        old_episode_name = ""
 
         for rgb, depth, segment, measure, episode_name in tqdm(zip(rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths, episode_names)):
             point = {}
@@ -72,12 +77,21 @@ class CarlaDataset(tud.Dataset):
             point['measure'] = self._load_measurement(measure)
             point['episode_name'] = episode_name
 
-            if episode_name not in self.episodes:
-                self.episodes[episode_name] = []
-            self.episodes[episode_name].append(point)
+            if episode_name != old_episode_name:
+                episode = []
+                old_episode_name = episode_name
+            episode.append(point)
 
-            self.data.append(point)
-            point['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
+            # must be the same as the episode length in train_physics.py
+            episode_length = 3
+            if len(episode) == episode_length:
+                for p in episode:
+                    if episode_name not in self.episodes:
+                        self.episodes[episode_name] = []
+                    self.episodes[episode_name].append(p)
+                    self.data.append(p)
+                    self._data.append(copy.deepcopy(p))
+                    p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
 
     def __init__(self, data_file=None):
         images_base = "/home/ubuntu/zero/data/_images"
@@ -134,7 +148,7 @@ class CarlaDataset(tud.Dataset):
         return cars
 
     def get_3d_transform(self, idx):
-        return self.data[idx]["measure"]["playerMeasurements"]["transform"]
+        return self._data[idx]["measure"]["playerMeasurements"]["transform"]
 
     def orientation_to_rotation(self, orientation):
         # Transform a 2D orientation vector of the primary vehicle axis into the 3D rotation matrix for the points.
@@ -179,8 +193,8 @@ class CarlaDataset(tud.Dataset):
 
     def get_rotation(self, idx):
         # TODO: Adapt this based on the orientation of the vehicle (hard-coded for now).
-        transform = self.get_3d_transform(idx)
-        #rotation_vehicle = self.orientation_to_rotation(transform["orientation"])
+        # transform = self.get_3d_transform(idx)
+        # rotation_vehicle = self.orientation_to_rotation(transform["orientation"])
 
         # 90-degree rotation about the X-axis.
         angle = np.pi / 2
@@ -219,7 +233,7 @@ class CarlaDataset(tud.Dataset):
         # Transform image coordinates into world coordinates using a depth map.
 
         # depth matrix is (y,x) indexed
-        depth = self.data[idx]['depth'][int(coordinates[1]), int(coordinates[0])]
+        depth = self._data[idx]['depth'][int(coordinates[1]), int(coordinates[0])]
         rotation = self.get_rotation(idx)
         instrinsic = self.camera_intrinsic()
         inverse = np.linalg.inv(instrinsic.dot(rotation))
@@ -413,24 +427,26 @@ def collate(batch):
     labels = autograd.Variable(torch.from_numpy(labels))
     return inputs, labels
 
-def make_loader(data_path, batch_size, model):
-    dataset = Dataset(data_path)
-    for i, b in enumerate(dataset):
-        dataset.data[i] = model.to_numpy(b)
-
-    sampler = tud.sampler.RandomSampler(dataset)
-    loader = tud.DataLoader(dataset,
-                batch_size=batch_size,
-                sampler=sampler,
-                collate_fn=collate)
-    return loader
+# def make_loader(data_path, batch_size, model):
+#     dataset = Dataset(data_path)
+#     for i, b in enumerate(dataset):
+#         dataset.data[i] = model.to_numpy(b)
+#
+#     sampler = tud.sampler.SequentialSampler(dataset)
+#     loader = tud.DataLoader(dataset,
+#                 batch_size=batch_size,
+#                 sampler=sampler,
+#                 collate_fn=collate)
+#     return loader
 
 def make_loader(data_path, batch_size, model):
     dataset = CarlaDataset(data_path)
     for i, b in enumerate(dataset):
         dataset.data[i] = model.to_numpy(b)
+    print("Dataset length")
+    print(len(dataset.data))
 
-    sampler = tud.sampler.RandomSampler(dataset)
+    sampler = tud.sampler.SequentialSampler(dataset)
     loader = tud.DataLoader(dataset,
                 batch_size=batch_size,
                 sampler=sampler,
