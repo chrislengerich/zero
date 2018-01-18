@@ -83,9 +83,17 @@ class CarlaDataset(tud.Dataset):
             episode.append(point)
 
             # must be the same as the episode length in train_physics.py
-            episode_length = 3
+            episode_length = 5
             if len(episode) == episode_length:
                 for p in episode:
+                    if episode_name not in self.episodes:
+                        self.episodes[episode_name] = []
+                    self.episodes[episode_name].append(p)
+                    self.data.append(p)
+                    self._data.append(copy.deepcopy(p))
+                    p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
+
+                for p in reversed(episode):
                     if episode_name not in self.episodes:
                         self.episodes[episode_name] = []
                     self.episodes[episode_name].append(p)
@@ -288,24 +296,21 @@ class CarlaDataset(tud.Dataset):
         location = np.array(self.closest_cars(idx)[0]["world_position"])
         return self.world_to_image(idx, location)
 
-    def view_extrapolated(self, idx):
+    def view_predicted(self, idx, predictions_image):
         episode = self.get_episode(idx)
         assert len(episode) > 2
 
-        steps = 5
+        steps = len(predictions_image)
         first_frame_idx = self.get_episode_frame_idx(idx)
         frame_idxs = np.arange(first_frame_idx, first_frame_idx + steps)
         locations = [np.array(self.closest_cars(i)[0]["world_position"]) for i in frame_idxs]
         locations_image = [self.world_to_image(i,c) for (i,c) in zip(frame_idxs, locations)]
 
-        extrapolated_world = extrapolate.linear(locations[0], locations[1], 5)
-        extrapolated_image = [self.world_to_image(i,c) for (i,c) in zip(frame_idxs, extrapolated_world)]
-
         fig, ax = plt.subplots(1)
-        ax.imshow(self.data[frame_idxs[0]]['rgb'])
-        for i in [4]:
+        #ax.imshow(self.data[frame_idxs[0]]['rgb'])
+        for i in range(0,len(predictions_image),4):
             ax.imshow(self.data[frame_idxs[i]]['rgb'], alpha=0.2)
-        for im in extrapolated_image:
+        for im in predictions_image:
             rect = patches.Rectangle((im[0], im[1]), 10, 10, linewidth=1, edgecolor='r',
                                      facecolor='none')
             ax.add_patch(rect)
@@ -316,8 +321,29 @@ class CarlaDataset(tud.Dataset):
             ax.add_patch(rect)
 
         plt.show()
-        print("Loss: {0}".format(extrapolate.loss(extrapolated_image, locations_image)))
-        pprint.pprint(extrapolated_image)
+        predictions_image = np.array(predictions_image).astype(np.float32)
+        predictions_image[:,0] /= 800
+        predictions_image[:,1] /= 600
+        locations_image = np.array(locations_image).astype(np.float32)
+        print(locations_image)
+        locations_image[:,0] /= 800
+        locations_image[:,1] /= 600
+
+        print("Loss: {0}".format(extrapolate.loss(predictions_image, locations_image[:,0:2])))
+        pprint.pprint(predictions_image)
+
+    def view_extrapolated(self, idx):
+        steps = 5
+        first_frame_idx = self.get_episode_frame_idx(idx)
+        frame_idxs = np.arange(first_frame_idx, first_frame_idx + steps)
+        locations = [np.array(self.closest_cars(i)[0]["world_position"]) for i in frame_idxs]
+
+        extrapolated_world = extrapolate.linear(locations[0], locations[1], 5)
+        extrapolated_image = [self.world_to_image(i, c) for (i, c) in zip(frame_idxs, extrapolated_world)]
+        extrapolated_image[0][0] += 100
+        #extrapolated_image[1][0] += 100
+        print(extrapolated_image)
+        self.view_predicted(idx, extrapolated_image)
 
     def view_episode(self, idx):
         # Render a gif of the episode.

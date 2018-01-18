@@ -3,6 +3,7 @@ import numpy as np
 from loader import CarlaDataset
 import json
 import copy
+import torch
 
 class LinearModel(nn.Module):
 
@@ -71,7 +72,7 @@ class LinearModel(nn.Module):
         # print(y)
 
         out = out.view(b, x*y*c)
-        return self.fc(out)
+        return torch.sigmoid(self.fc(out))
 
 
 if __name__ == "__main__":

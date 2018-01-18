@@ -30,22 +30,21 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         # y is the ground-truth labels.
         # y_ext is are y-labels predicted by extrapolation.
 
-        episode_size = 3
+        episode_size = 5
         if yhat.shape != (episode_size, 2):
             continue
         #assert yhat.shape == (episode_size, 2), yhat.shape
 
         # TODO: change this if our camera ends up in a different position.
         fixed_loader_index = 0
-        yhat = torch.clamp(yhat, 0, 0.99)
         yhat_coords = copy.deepcopy(yhat.data.cpu().numpy())
 
         image_width = 800
         image_height = 600
 
-        # clamp values in-bounds for the depth map
-        yhat_coords[:,0] = yhat_coords[:,0] * image_width
-        yhat_coords[:,1] = yhat_coords[:,1] * image_height
+        # # clamp values in-bounds for the depth map
+        yhat_coords[:,0] = np.clip(yhat_coords[:,0] * image_width, 0, image_width - 1)
+        yhat_coords[:,1] = np.clip(yhat_coords[:,1] * image_height, 0, image_height - 1)
 
         y_ext = extrapolate.linear_image([yhat_coords[0,:], yhat_coords[1,:]], episode_size, train_ldr.sampler.data_source, fixed_loader_index)
         y_ext = np.array(y_ext)
@@ -65,18 +64,23 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         print("y_ext_var")
         y_ext[:, 0] /= image_width
         y_ext[:, 1] /= image_height
+        y_ext[:,0:2] = y.data[:,:]
+
+        # y_ext[0, 0:2] = y.data[0, :]
         y_ext = torch.autograd.Variable(torch.from_numpy(y_ext[:, 0:2].astype(np.float32)), requires_grad=False).cuda()
         print(y_ext)
 
         pseudo_loss = model.loss.forward(yhat, y_ext)
-        pseudo_loss.backward()
+        psuedo_loss_regularized = model.loss.forward(yhat[0,:], y_ext[0,:]) # - 0.1 * torch.std(yhat[:,1]) - 0.1 * torch.std(yhat[:,0])
+        psuedo_loss_regularized.backward()
         optimizer.step()
 
         exp_w = 0.99
         avg_pseudo_loss = exp_w * avg_pseudo_loss + (1 - exp_w) * pseudo_loss.data[0]
-        tb.log_value('pseudo_loss', pseudo_loss.data[0], it)
+        tb.log_value('train_pseudo_loss', pseudo_loss.data[0], it)
 
         loss = model.loss.forward(yhat, y)
+        tb.log_value('train_loss', loss.data[0], it)
         avg_loss = exp_w * avg_loss + (1 - exp_w) * loss.data[0]
 
         tq.set_postfix(iter=it, pseudo_loss=pseudo_loss.data[0], avg_pseudo_loss=avg_pseudo_loss, avg_loss=avg_loss)
@@ -120,6 +124,8 @@ def run(config):
         dev_loss = eval_loop(model, dev_ldr)
         print("Dev Loss: {:.2f}".format(dev_loss))
 
+        tb.log_value("dev_loss", dev_loss, e)
+
         # # Log for tensorboard
         # tb.log_value("dev_loss", dev_loss, e)
         # tb.log_value("dev_map", dev_map, e)
@@ -132,8 +138,9 @@ def run(config):
         # # Save the best model by F1 score on the dev set
         # if dev_map > best_so_far:
         #     best_so_far = dev_map
-        #     util.save(model, preproc,
-        #               config["save_path"], tag="best")
+
+        util.save(model, preproc,
+                       config["save_path"], tag="best")
 
 
 

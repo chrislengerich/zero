@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 def linear(p0, p1, timesteps):
     # Linear projection:
@@ -20,7 +21,8 @@ def linear_image(p_image, timesteps, loader, idx):
     return ext_image
 
 def loss(predictions, extrapolations):
-    return np.linalg.norm(np.array(predictions) - np.array(extrapolations))
+    loss = torch.nn.MSELoss()
+    return loss.forward(torch.autograd.Variable(torch.from_numpy(np.array(predictions))), torch.autograd.Variable(torch.from_numpy(np.array(extrapolations)))).data[0]
 
 if __name__ == "__main__":
     p0 = np.array([1,2,3])

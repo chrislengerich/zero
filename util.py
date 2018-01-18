@@ -20,6 +20,6 @@ def save(model, preproc, path, tag=""):
 def load(path, tag=""):
     model_n, preproc_n = get_names(path, tag)
     model = torch.load(model_n)
-    with open(preproc_n, 'r') as fid:
-        preproc = pickle.load(fid)
-    return model, preproc
+    # with open(preproc_n, 'r') as fid:
+    #     preproc = pickle.load(fid)
+    return model#, preproc
