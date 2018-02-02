@@ -93,19 +93,27 @@ class CarlaDataset(tud.Dataset):
                     self._data.append(copy.deepcopy(p))
                     p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
 
-                for p in reversed(episode):
-                    if episode_name not in self.episodes:
-                        self.episodes[episode_name] = []
-                    self.episodes[episode_name].append(p)
-                    self.data.append(p)
-                    self._data.append(copy.deepcopy(p))
-                    p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
+                # for p in reversed(episode):
+                #     if episode_name not in self.episodes:
+                #         self.episodes[episode_name] = []
+                #     self.episodes[episode_name].append(p)
+                #     self.data.append(p)
+                #     self._data.append(copy.deepcopy(p))
+                #     p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
+
+    def split_carla_episode(self, string):
+        s = string.split("/")
+        carla_episode_name = int(s[0])
+        unique_id = str(int(1E6 * carla_episode_name) + int(s[1]))
+        return [carla_episode_name, unique_id, int(s[1])]
 
     def __init__(self, data_file=None):
         images_base = "/home/ubuntu/zero/data/_images"
         measurements_base = "/home/ubuntu/zero/data/_measurements"
 
-        image_format = "image_{0}.png"
+        image_format = "image_{:0>5d}.png"
+        carla_episode_format = "episode_{:0>3d}"
+        measurement_format = "measurement_{:0>5d}.json"
 
         rgb_paths = []
         depth_paths = []
@@ -117,11 +125,14 @@ class CarlaDataset(tud.Dataset):
             with open(data_file) as f:
                 prefixes = f.readlines()
 
-                episode_name = int(prefixes[0])
+                _, episode_name, _ = self.split_carla_episode(prefixes[0])
+                episode_name = int(episode_name)
                 current_frames = 0
 
                 for p in prefixes:
                     p.strip()
+
+                    carla_episode, p, frame_id = self.split_carla_episode(p)
 
                     # Split up data into episodes consisting of sequential frames.
                     candidate_frame = int(p)
@@ -130,13 +141,15 @@ class CarlaDataset(tud.Dataset):
                         current_frames = 0
                     current_frames += 1
 
-                    rgb_paths.append(os.path.join(images_base, "episode_000", "CameraRGB", image_format.format(p.strip())))
+                    carla_episode_str = carla_episode_format.format(carla_episode)
+
+                    rgb_paths.append(os.path.join(images_base, carla_episode_str, "CameraRGB", image_format.format(frame_id)))
                     depth_paths.append(
-                        os.path.join(images_base, "episode_000", "CameraDepth", image_format.format(p.strip())))
+                        os.path.join(images_base, carla_episode_str, "CameraDepth", image_format.format(frame_id)))
                     seg_paths.append(
-                        os.path.join(images_base, "episode_000", "CameraSegment", image_format.format(p.strip())))
+                        os.path.join(images_base, carla_episode_str, "CameraSegment", image_format.format(frame_id)))
                     measure_paths.append(
-                        os.path.join(measurements_base, "measurement_{0}.json".format(p.strip())))
+                        os.path.join(measurements_base, carla_episode_str, measurement_format.format(frame_id)))
                     episode_names.append(
                         episode_name
                     )
@@ -149,7 +162,7 @@ class CarlaDataset(tud.Dataset):
         return self.data[idx]
 
     def car_locations(self, idx):
-        d = self.data[idx]
+        d = self._data[idx]
         measurements = d['measure']
         non_player_agents = measurements['nonPlayerAgents']
         cars = filter(lambda x: "vehicle" in x, non_player_agents)
@@ -162,6 +175,7 @@ class CarlaDataset(tud.Dataset):
         # Transform a 2D orientation vector of the primary vehicle axis into the 3D rotation matrix for the points.
         # The 2d coordinate specify the unit vector for the rotation around the Z-axis.
 
+        # The base orientation for the camera is aligned with orientation [0,1].
         theta_radians = np.arctan2(-orientation["y"], orientation["x"])
         twod_rotation = cv2.getRotationMatrix2D((0,0), 180 * (theta_radians / np.pi), 1)
         threed_rotation = np.eye(4,4)
@@ -201,8 +215,15 @@ class CarlaDataset(tud.Dataset):
 
     def get_rotation(self, idx):
         # TODO: Adapt this based on the orientation of the vehicle (hard-coded for now).
-        # transform = self.get_3d_transform(idx)
-        # rotation_vehicle = self.orientation_to_rotation(transform["orientation"])
+        transform = self.get_3d_transform(idx)
+        # transform["orientation"] holds the 2d orientation of the vehicle.
+
+        # orientation [0,1] has axes aligned with the world coordinate system (except for the left-handed coordinate system).
+        orientation_vector = np.array([transform["orientation"]["x"], transform["orientation"]["y"], 1, 1])
+        orientation = self.orientation_to_rotation({"x": 0, "y": -1}).dot(orientation_vector)
+        orientation = {"x": orientation[0], "y": orientation[1]}
+        rotation_vehicle = self.orientation_to_rotation(orientation)
+        rotation_vehicle = rotation_vehicle[0:3,0:3]
 
         # 90-degree rotation about the X-axis.
         angle = np.pi / 2
@@ -218,8 +239,9 @@ class CarlaDataset(tud.Dataset):
             [0, 1, 0],
             [0, 0, 1]
         ])
+        #rotation_vehicle = np.eye(3)
 
-        return rotation_right_to_left.dot(rotation_camera)
+        return rotation_right_to_left.dot(rotation_camera).dot(rotation_vehicle)
 
     def world_to_camera(self, idx, coordinates):
         # Transform world coordinates into camera coordinates.
@@ -297,19 +319,18 @@ class CarlaDataset(tud.Dataset):
         return self.world_to_image(idx, location)
 
     def view_predicted(self, idx, predictions_image):
-        episode = self.get_episode(idx)
-        assert len(episode) > 2
+        # episode = self.get_episode(idx)
+        # assert len(episode) > 2
 
         steps = len(predictions_image)
-        first_frame_idx = self.get_episode_frame_idx(idx)
+        first_frame_idx = idx #self.get_episode_frame_idx(idx)
         frame_idxs = np.arange(first_frame_idx, first_frame_idx + steps)
         locations = [np.array(self.closest_cars(i)[0]["world_position"]) for i in frame_idxs]
         locations_image = [self.world_to_image(i,c) for (i,c) in zip(frame_idxs, locations)]
 
         fig, ax = plt.subplots(1)
-        #ax.imshow(self.data[frame_idxs[0]]['rgb'])
         for i in range(0,len(predictions_image),4):
-            ax.imshow(self.data[frame_idxs[i]]['rgb'], alpha=0.2)
+            ax.imshow(self._data[frame_idxs[i]]['rgb'], alpha=0.2)
         for im in predictions_image:
             rect = patches.Rectangle((im[0], im[1]), 10, 10, linewidth=1, edgecolor='r',
                                      facecolor='none')
@@ -364,9 +385,7 @@ class CarlaDataset(tud.Dataset):
         ax.imshow(self.data[idx]['rgb'])
 
         # Get the location of the closest car in homogeneous coordinates, and plot it as a bounding box.
-        location = np.ones((4,1)).flatten()
-        location[0:3] = self.closest_cars(idx)[0]["world_position"]
-        image_coords = self.world_to_image(idx, location)
+        image_coords = self.world_to_image(idx, self.closest_cars(idx)[0]["world_position"])
         rect = patches.Rectangle((image_coords[0], image_coords[1]), 10, 10, linewidth=1, edgecolor='r', facecolor='none')
         ax.add_patch(rect)
         fig, ax = plt.subplots(1)
@@ -473,6 +492,7 @@ def make_loader(data_path, batch_size, model):
     print(len(dataset.data))
 
     sampler = tud.sampler.SequentialSampler(dataset)
+    print(batch_size)
     loader = tud.DataLoader(dataset,
                 batch_size=batch_size,
                 sampler=sampler,

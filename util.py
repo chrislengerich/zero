@@ -2,7 +2,7 @@ import os
 import cPickle as pickle
 import torch
 
-MODEL = "model"
+MODEL = "best_model"
 PREPROC = "preproc.pyc"
 
 def get_names(path, tag):

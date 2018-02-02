@@ -57,7 +57,7 @@ class LinearModel(nn.Module):
         closest_car_image = np_data_point[1]
         closest_car_image[0] *= image_width
         closest_car_image[1] *= image_height
-        data = { 'rgb': np_data_point[0].astype(int).transpose([2,0,1]),  'closest_car_image': closest_car_image }
+        data = { 'rgb': np_data_point[0].astype(int).transpose([1,2,0]),  'closest_car_image': closest_car_image }
         return data
 
     def forward(self, images):

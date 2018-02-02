@@ -21,8 +21,12 @@ from google.protobuf.json_format import MessageToJson
 def measurements_to_json(measurements):
     return MessageToJson(measurements)
 
-def save_measurements(frame, measurements):
-    with open("_measurements/measurement_{:0>5d}.json".format(frame), "w") as f:
+def save_measurements(frame, episode, measurements):
+    import os
+    measurements_dir = "_measurements/episode_{:0>3d}/".format(episode)
+    if not os.path.exists(measurements_dir):
+        os.mkdir(measurements_dir)
+    with open("_measurements/episode_{:0>3d}/measurement_{:0>5d}.json".format(episode, frame), "w") as f:
         json_measurements = measurements_to_json(measurements)
         json.dump(json_measurements, f)
 
@@ -49,8 +53,9 @@ def has_car(sensor_data):
 
 def run_carla_client(host, port, autopilot_on, save_images_to_disk, image_filename_format, settings_filepath):
     # Here we will run 3 episodes with 300 frames each.
-    number_of_episodes = 1
-    frames_per_episode = 100000
+    number_of_episodes = 100
+    episode_start = 1
+    frames_per_episode = 1000
 
     # We assume the CARLA server is already waiting for a client to connect at
     # host:port. To create a connection we can use the `make_carla_client`
@@ -60,7 +65,7 @@ def run_carla_client(host, port, autopilot_on, save_images_to_disk, image_filena
     with make_carla_client(host, port) as client:
         print('CarlaClient connected')
 
-        for episode in range(0, number_of_episodes):
+        for episode in range(episode_start, number_of_episodes + episode_start):
             # Start a new episode.
 
             # Load settings from the file.
@@ -97,7 +102,7 @@ def run_carla_client(host, port, autopilot_on, save_images_to_disk, image_filena
                     for name, image in sensor_data.items():
                         print ("saving %s" % name)
                         image.save_to_disk(image_filename_format.format(episode, name, frame))
-                    save_measurements(frame, measurements)
+                    save_measurements(frame, episode, measurements)
 
                 client.send_control(
                     steer=0, #random.uniform(-1.0, 1.0),
@@ -151,7 +156,7 @@ def main():
         help='enable autopilot')
     argparser.add_argument(
         '-i', '--images-to-disk',
-        action='store_true',
+        action='store_false',
         help='save images to disk')
     argparser.add_argument(
         '-c', '--carla-settings',

@@ -6,14 +6,25 @@ import json
 import util
 import numpy as np
 
-def view(loader, dataset, model, index):
+def view(loader, model, index):
     iters = 0
+    print (len(loader.sampler.data_source._data))
     for x,y in loader:
+        print(iters)
         if index != iters:
             iters += 1
             continue
         out = model(x)
-        dataset.view_predicted(index, [out.data.numpy().flatten()])
+        results = out.data.numpy()
+        results[:, 0] *= 800
+        results[:, 1] *= 600
+
+        print x
+        print y
+        #print(loader.sampler.data_source.data[index])
+        print(model.to_numpy(loader.sampler.data_source._data[index]))
+
+        loader.sampler.data_source.view_predicted(index, [results.flatten()])
         iters += 1
 
 def init(config_path, model_path):
@@ -34,5 +45,4 @@ def init(config_path, model_path):
     model.cuda() if use_cuda else model.cpu()
 
     dev_loader = loader.make_loader(data_cfg["dev_set"], 1, model)
-    dataset = loader.CarlaDataset(data_cfg["dev_set"])
-    return dev_loader, dataset, model
+    return dev_loader, model

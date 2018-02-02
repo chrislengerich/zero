@@ -53,7 +53,7 @@ class BabyYolo(nn.Module):
         return (data_point['image'].astype(np.float32).transpose([2,0,1]), box_numpy)
 
     def from_numpy(self, np_data_point):
-        data = { 'image': np_data_point[0].astype(int).transpose([2,0,1]) }
+        data = { 'image': np_data_point[0].astype(int).transpose([1,2,0]) }
 
         image_height = data['image'].shape[0]
         image_width = data['image'].shape[1]

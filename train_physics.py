@@ -38,6 +38,9 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         # TODO: change this if our camera ends up in a different position.
         fixed_loader_index = 0
         yhat_coords = copy.deepcopy(yhat.data.cpu().numpy())
+        print(y[0,:])
+        yhat_coords[0,:] = y.data[0,:]
+        yhat_coords[1, :] = y.data[1, :]
 
         image_width = 800
         image_height = 600
@@ -64,15 +67,19 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         print("y_ext_var")
         y_ext[:, 0] /= image_width
         y_ext[:, 1] /= image_height
-        y_ext[:,0:2] = y.data[:,:]
+        # y_ext[2:, :] += 0.01 * np.random.rand(3,3)
+        # y_ext[4, :] += 0.1 * np.random.rand(1,3).flatten()
+        print(y_ext[:,0:2] - y.data[:,:])
+        print y_ext[4, 0:2]
+        print y.data[4,:]
+        y_ext[4,0:2] = y.data[4,:]
 
         # y_ext[0, 0:2] = y.data[0, :]
         y_ext = torch.autograd.Variable(torch.from_numpy(y_ext[:, 0:2].astype(np.float32)), requires_grad=False).cuda()
         print(y_ext)
 
         pseudo_loss = model.loss.forward(yhat, y_ext)
-        psuedo_loss_regularized = model.loss.forward(yhat[0,:], y_ext[0,:]) # - 0.1 * torch.std(yhat[:,1]) - 0.1 * torch.std(yhat[:,0])
-        psuedo_loss_regularized.backward()
+        pseudo_loss.backward()
         optimizer.step()
 
         exp_w = 0.99
