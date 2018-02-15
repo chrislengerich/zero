@@ -19,7 +19,9 @@ use_cuda = True
 
 def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
     tq = tqdm.tqdm(train_ldr)
-    for x, y in tq:
+    mode = "discriminator"
+
+    for i, (x, y) in enumerate(tq):
         if use_cuda:
             x = x.cuda()
             y = y.cuda()
@@ -34,14 +36,6 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         if yhat.shape != (episode_size, 2):
             continue
 
-        frames, dimensions = yhat.size()
-        dist_id = model.discriminator(yhat.view(frames*dimensions))
-        print("discriminator output")
-        print(dist_id)
-        
-        #assert yhat.shape == (episode_size, 2), yhat.shape
-
-        # TODO: change this if our camera ends up in a different position.
         fixed_loader_index = 0
         yhat_coords = copy.deepcopy(yhat.data.cpu().numpy())
         print(y[0,:])
@@ -57,6 +51,44 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
 
         y_ext = extrapolate.linear_image([yhat_coords[0,:], yhat_coords[1,:]], episode_size, train_ldr.sampler.data_source, fixed_loader_index)
         y_ext = np.array(y_ext)
+
+        # Adversarial loss
+        frames, dimensions = yhat.size()
+
+        if i % 2 == 0:
+            mode = "discriminator"
+        else:
+            mode = "generator"
+
+        if mode == "discriminator":
+            pass
+            # freeze weights of generator from gradient.
+            # forward prop generator output.
+            # get auxiliary data (currently use labels, later use a feeder).
+            # calculate loss as log(discriminator(y)) + log(1 - discriminator(y_hat))
+            # backward prop loss
+
+        elif mode == "generator":
+            print mode
+            # freeze weights of discriminator from gradient.
+            for v in model.discriminator_arr:
+                v.requires_gradient = False
+
+            label = torch.autograd.Variable(torch.from_numpy(np.zeros(1).astype(np.float32)), requires_grad=False).cuda()
+
+            # forward prop generator output
+            # calculate loss as log(1 - discriminator(y_hat)) (drive to zero)
+            loss = model.loss(torch.log(1 - model.discriminator(yhat.view(frames * dimensions))), label)
+            print "Loss"
+            print loss.data[0]
+
+            # backward prop loss.
+            loss.backward()
+            optimizer.step()
+
+            # unfreeze weights of discriminator.
+            for v in model.discriminator_arr:
+                v.requires_gradient = True
 
         print("y")
         print(y)
@@ -85,8 +117,8 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         print(y_ext)
 
         pseudo_loss = model.loss.forward(yhat, y_ext)
-        pseudo_loss.backward()
-        optimizer.step()
+        #pseudo_loss.backward()
+        #optimizer.step()
 
         exp_w = 0.99
         avg_pseudo_loss = exp_w * avg_pseudo_loss + (1 - exp_w) * pseudo_loss.data[0]
