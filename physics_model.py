@@ -34,6 +34,8 @@ class LinearModel(nn.Module):
                 layer = nn.MaxPool2d(l["kernel"], stride=l["stride"])
             convs.append(layer)
 
+        self.convs = convs
+
         output_dim = 2 # [xmin, xmax] of centroid
         self.conv = nn.Sequential(*convs)
 
@@ -41,9 +43,9 @@ class LinearModel(nn.Module):
         in_channels = 1024 * 1 * 4
         self.fc = nn.Linear(in_channels, output_dim)
 
-        # 2-layer fully connected discriminator.
+        # 5-layer fully connected discriminator.
         batch_size=5
-        self.discriminator_arr = [nn.Sigmoid(), nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Sigmoid(), nn.Linear(batch_size * output_dim, 1)]
+        self.discriminator_arr = [nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(), nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(), nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(), nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(), nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(), nn.Linear(batch_size * output_dim, 1), nn.Tanh() ] # batch_size * output_dim), nn.Sigmoid(), nn.Linear(batch_size * output_dim, 1)]
         self.discriminator = nn.Sequential(*self.discriminator_arr)
 
         self.loss = nn.MSELoss()

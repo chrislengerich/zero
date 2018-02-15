@@ -23,3 +23,8 @@ def load(path, tag=""):
     # with open(preproc_n, 'r') as fid:
     #     preproc = pickle.load(fid)
     return model#, preproc
+
+def flip_params(variable, state):
+    for p in variable.parameters():
+        assert p.requires_grad == (not state)
+        p.requires_grad = state
