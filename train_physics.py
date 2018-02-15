@@ -33,6 +33,12 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         episode_size = 5
         if yhat.shape != (episode_size, 2):
             continue
+
+        frames, dimensions = yhat.size()
+        dist_id = model.discriminator(yhat.view(frames*dimensions))
+        print("discriminator output")
+        print(dist_id)
+        
         #assert yhat.shape == (episode_size, 2), yhat.shape
 
         # TODO: change this if our camera ends up in a different position.

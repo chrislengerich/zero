@@ -5,6 +5,9 @@ import json
 import copy
 import torch
 
+
+
+
 class LinearModel(nn.Module):
 
     # Simple linear physics model.
@@ -37,6 +40,12 @@ class LinearModel(nn.Module):
         # final dimensionality of convolutional tower output: channels x width x height
         in_channels = 1024 * 1 * 4
         self.fc = nn.Linear(in_channels, output_dim)
+
+        # 2-layer discriminator
+        batch_size=5
+        discriminator_arr = [nn.Sigmoid(), nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Sigmoid(), nn.Linear(batch_size * output_dim, 1)]
+        self.discriminator = nn.Sequential(*discriminator_arr)
+
         self.loss = nn.MSELoss()
 
     def to_numpy(self, data_point):
