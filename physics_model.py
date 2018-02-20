@@ -45,7 +45,14 @@ class LinearModel(nn.Module):
 
         # 5-layer fully connected discriminator.
         batch_size=5
-        self.discriminator_arr = [nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(), nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(), nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(), nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(), nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(), nn.Linear(batch_size * output_dim, 1), nn.Tanh() ] # batch_size * output_dim), nn.Sigmoid(), nn.Linear(batch_size * output_dim, 1)]
+        self.discriminator_arr = [nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(),
+                                  nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(),
+                                  nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(),
+                                  nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(),
+                                  nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(),
+                                  # nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(),
+                                  # nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(),
+                                  nn.Linear(batch_size * output_dim, 1), nn.Tanh() ]
         self.discriminator = nn.Sequential(*self.discriminator_arr)
 
         self.loss = nn.MSELoss()

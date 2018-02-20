@@ -20,6 +20,8 @@ use_cuda = True
 def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
     tq = tqdm.tqdm(train_ldr)
 
+    prior_x =
+
     for i, (x, y) in enumerate(tq):
         if use_cuda:
             x = x.cuda()
@@ -39,8 +41,8 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         yhat_coords = copy.deepcopy(yhat.data.cpu().numpy())
 
         print(y[0,:])
-        #yhat_coords[0,:] = y.data[0,:]
-        #yhat_coords[1, :] = y.data[1, :]
+        yhat_coords[0,:] = y.data[0,:]
+        yhat_coords[1, :] = y.data[1, :]
 
         image_width = 800
         image_height = 600
@@ -52,6 +54,26 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         y_ext = extrapolate.linear_image([yhat_coords[0,:], yhat_coords[1,:]], episode_size, train_ldr.sampler.data_source, fixed_loader_index)
         y_ext = np.array(y_ext)
 
+
+        print("y")
+        print(y)
+
+        print("yhat")
+        print(yhat)
+
+        print("yhat_coords")
+        print(yhat_coords)
+
+        print("y_ext")
+        print(y_ext)
+
+        print("y_ext_var")
+        y_ext[:, 0] /= image_width
+        y_ext[:, 1] /= image_height
+
+        y_ext = torch.autograd.Variable(torch.from_numpy(y_ext[:, 0:2].astype(np.float32)), requires_grad=False).cuda()
+        print(y_ext)
+
         # Adversarial loss
         frames, dimensions = yhat.size()
 
@@ -59,7 +81,6 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
             mode = "generator"
         else:
             mode = "discriminator"
-
 
         if mode == "discriminator":
             # freeze weights of generator from gradient.
@@ -74,7 +95,8 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
             # get auxiliary data (currently use labels, later use a feeder).
             print(y.view(frames * dimensions))
             print(model.discriminator(y.view(frames * dimensions)))
-            loss = model.loss(torch.log(model.discriminator(y.view(frames * dimensions)) + 2) - torch.log(model.discriminator(yhat.view(frames * dimensions)) + 2), label)
+            loss = model.loss(torch.log(model.discriminator(y_ext.view(frames * dimensions)) + 2) - torch.log(
+                model.discriminator(yhat.view(frames * dimensions)) + 2), label)
             print "Discriminative loss"
             print loss.data[0]
 
@@ -107,32 +129,6 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
             # unfreeze weights of discriminator.
             for v in model.discriminator_arr:
                 util.flip_params(v, True)
-
-        print("y")
-        print(y)
-
-        print("yhat")
-        print(yhat)
-
-        print("yhat_coords")
-        print(yhat_coords)
-
-        print("y_ext")
-        print(y_ext)
-
-        print("y_ext_var")
-        y_ext[:, 0] /= image_width
-        y_ext[:, 1] /= image_height
-        # y_ext[2:, :] += 0.01 * np.random.rand(3,3)
-        # y_ext[4, :] += 0.1 * np.random.rand(1,3).flatten()
-        print(y_ext[:,0:2] - y.data[:,:])
-        print y_ext[4, 0:2]
-        print y.data[4,:]
-        y_ext[4,0:2] = y.data[4,:]
-
-        # y_ext[0, 0:2] = y.data[0, :]
-        y_ext = torch.autograd.Variable(torch.from_numpy(y_ext[:, 0:2].astype(np.float32)), requires_grad=False).cuda()
-        print(y_ext)
 
         pseudo_loss = model.loss.forward(yhat, y_ext)
         #pseudo_loss.backward()
