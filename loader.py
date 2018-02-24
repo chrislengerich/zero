@@ -15,6 +15,7 @@ import imageio
 import extrapolate
 import pprint
 import copy
+import random
 
 import cv2
 from PIL import Image
@@ -85,21 +86,22 @@ class CarlaDataset(tud.Dataset):
             # must be the same as the episode length in train_physics.py
             episode_length = 5
             if len(episode) == episode_length:
-                for p in episode:
-                    if episode_name not in self.episodes:
-                        self.episodes[episode_name] = []
-                    self.episodes[episode_name].append(p)
-                    self.data.append(p)
-                    self._data.append(copy.deepcopy(p))
-                    p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
-
-                # for p in reversed(episode):
-                #     if episode_name not in self.episodes:
-                #         self.episodes[episode_name] = []
-                #     self.episodes[episode_name].append(p)
-                #     self.data.append(p)
-                #     self._data.append(copy.deepcopy(p))
-                #     p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
+                if random.random() > 0.5:
+                    for p in episode:
+                        if episode_name not in self.episodes:
+                            self.episodes[episode_name] = []
+                        self.episodes[episode_name].append(p)
+                        self.data.append(p)
+                        self._data.append(copy.deepcopy(p))
+                        p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
+                else:
+                    for p in reversed(episode):
+                        if episode_name not in self.episodes:
+                            self.episodes[episode_name] = []
+                        self.episodes[episode_name].append(p)
+                        self.data.append(p)
+                        self._data.append(copy.deepcopy(p))
+                        p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
 
     def split_carla_episode(self, string):
         s = string.split("/")
@@ -108,8 +110,8 @@ class CarlaDataset(tud.Dataset):
         return [carla_episode_name, unique_id, int(s[1])]
 
     def __init__(self, data_file=None):
-        images_base = "/home/ubuntu/zero/data/_images"
-        measurements_base = "/home/ubuntu/zero/data/_measurements"
+        images_base = "/home/gimli/zero/data/_images"
+        measurements_base = "/home/gimli/zero/data/_measurements"
 
         image_format = "image_{:0>5d}.png"
         carla_episode_format = "episode_{:0>3d}"

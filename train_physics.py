@@ -1,7 +1,7 @@
+import torch
 import tqdm
 import tensorboard_logger as tb
 import loader
-import torch
 import time
 import util
 import argparse
@@ -19,10 +19,9 @@ use_cuda = True
 
 def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
     tq = tqdm.tqdm(train_ldr)
+    permuted_tq = tqdm.tqdm(reversed(list(copy.deepcopy(train_ldr))))
 
-    prior_x =
-
-    for i, (x, y) in enumerate(tq):
+    for i, ((x, y), (x_rev, y_rev)) in enumerate(zip(tq, permuted_tq)):
         if use_cuda:
             x = x.cuda()
             y = y.cuda()
@@ -40,9 +39,13 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         fixed_loader_index = 0
         yhat_coords = copy.deepcopy(yhat.data.cpu().numpy())
 
-        print(y[0,:])
-        yhat_coords[0,:] = y.data[0,:]
-        yhat_coords[1, :] = y.data[1, :]
+        print("y")
+        print(y)
+        print("y_rev")
+        print(y_rev)
+
+        yhat_coords[0,:] = y_rev.data[0,:]
+        yhat_coords[1, :] = y_rev.data[1, :]
 
         image_width = 800
         image_height = 600
