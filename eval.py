@@ -7,14 +7,20 @@ def eval_loop(model, data_loader, use_cuda=True):
     tq = tqdm.tqdm(data_loader)
 
     losses = []
-    for x, y in tq:
+    for i, (x, y) in enumerate(tq):
         if use_cuda:
             x = x.cuda()
             y = y.cuda()
 
         out = model(x)
+        if i == 0:
+            print("yhat")
+            print(out)
+            print("y")
+            print(y)
         loss = model.loss.forward(out, y)
         losses.append(loss.data[0])
+    print(losses)
     avg_loss = np.mean(losses)
     return avg_loss
 

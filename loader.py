@@ -96,7 +96,7 @@ class CarlaDataset(tud.Dataset):
                         self.episodes[key].append(p)
                         self.data.append(p)
                         self._data.append(copy.deepcopy(p))
-                        p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
+                        p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)
                 else:
                     for p in reversed(episode):
                         if key not in self.episodes:
@@ -104,7 +104,7 @@ class CarlaDataset(tud.Dataset):
                         self.episodes[key].append(p)
                         self.data.append(p)
                         self._data.append(copy.deepcopy(p))
-                        p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
+                        p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)
                 assert len(self.episodes[key]) == 5, len(self.episodes[key])
                 episode = []
                 subepisodes += 1
@@ -122,6 +122,7 @@ class CarlaDataset(tud.Dataset):
         image_format = "image_{:0>5d}.png"
         carla_episode_format = "episode_{:0>3d}"
         measurement_format = "measurement_{:0>5d}.json"
+        self.data_file = data_file
 
         rgb_paths = []
         depth_paths = []
@@ -164,7 +165,7 @@ class CarlaDataset(tud.Dataset):
             self._load(rgb_paths, depth_paths, seg_paths, measure_paths, episode_names)
 
     def __len__(self):
-        return len(self.episodes)
+        return len(self.data)
 
     def __getitem__(self, idx):
         return self.data[idx]
@@ -226,9 +227,12 @@ class CarlaDataset(tud.Dataset):
         transform = self.get_3d_transform(idx)
         # transform["orientation"] holds the 2d orientation of the vehicle.
 
-        # orientation [0,1] has axes aligned with the world coordinate system (except for the left-handed coordinate system).
-        orientation_vector = np.array([transform["orientation"]["x"], transform["orientation"]["y"], 1, 1])
+        # right-hand -> right-hand coordinate system.
+        orientation_vector = np.array([-transform["orientation"]["x"], transform["orientation"]["y"], 1, 1])
+
+        # vehicle orientation [0,1] has axes aligned with the world coordinate system
         orientation = self.orientation_to_rotation({"x": 0, "y": -1}).dot(orientation_vector)
+
         orientation = {"x": orientation[0], "y": orientation[1]}
         rotation_vehicle = self.orientation_to_rotation(orientation)
         rotation_vehicle = rotation_vehicle[0:3,0:3]
@@ -310,7 +314,13 @@ class CarlaDataset(tud.Dataset):
            dist = np.linalg.norm(my_pos - pos)
 
            distances.append({ "dist": dist, "world_position": pos, "camera_position": pos - my_pos , "id": c["id"], "forward_speed": c["vehicle"].get("forwardSpeed", 0)})
-        #distances = filter(lambda x: x["forward_speed"] > 20, distances)
+
+        # Main issue:
+        #    Speed should not be a filter.
+        #    Would like to only select the cars that appear in front of the car.
+        #    Strict supervision is a lot easier (albeit time-consuming).
+        if not self.data_file == "data/train_carla_multicar":
+            distances = filter(lambda x: x["forward_speed"] > 20, distances)
         return sorted(distances, key=lambda x: x["dist"])
 
     def get_episode(self, idx):
@@ -322,9 +332,17 @@ class CarlaDataset(tud.Dataset):
         lengths.append(0)
         return np.sum(lengths)
 
-    def closest_car_centroid_image(self, idx):
-        location = np.array(self.closest_cars(idx)[0]["world_position"])
-        return self.world_to_image(idx, location)
+    def closest_car_centroid_image(self, idx, count=1):
+        """
+            Return the image coordinates of the n-closest cars.
+        """
+        coords = []
+        closest_cars = self.closest_cars(idx)
+        for i in range(min(count, len(closest_cars))):
+            location = np.array(closest_cars[i]["world_position"])
+            image_coords = self.world_to_image(idx, location)
+            coords.append(image_coords)
+        return coords
 
     def view_predicted(self, idx, predictions_image):
         # episode = self.get_episode(idx)
@@ -393,15 +411,15 @@ class CarlaDataset(tud.Dataset):
         ax.imshow(self.data[idx]['rgb'])
 
         # Get the location of the closest car in homogeneous coordinates, and plot it as a bounding box.
-        for i in range(3):
+        for i in range(1):
             image_coords = self.world_to_image(idx, self.closest_cars(idx)[i]["world_position"])
             rect = patches.Rectangle((image_coords[0], image_coords[1]), 10, 10, linewidth=1, edgecolor='r', facecolor='none')
             ax.add_patch(rect)
-        fig, ax = plt.subplots(1)
-        ax.imshow(np.log(self.data[idx]['depth']))
-        fig, ax = plt.subplots(1)
-        ax.imshow(np.log(self.data[idx]['segment']))
-        print("{0} car".format(self._percent_car(self.data[idx]['segment'])))
+        # fig, ax = plt.subplots(1)
+        # ax.imshow(np.log(self.data[idx]['depth']))
+        # fig, ax = plt.subplots(1)
+        # ax.imshow(np.log(self.data[idx]['segment']))
+        # print("{0} car".format(self._percent_car(self.data[idx]['segment'])))
         plt.show()
 
 
@@ -480,18 +498,6 @@ def collate(batch):
     inputs = autograd.Variable(torch.from_numpy(inputs))
     labels = autograd.Variable(torch.from_numpy(labels))
     return inputs, labels
-
-# def make_loader(data_path, batch_size, model):
-#     dataset = Dataset(data_path)
-#     for i, b in enumerate(dataset):
-#         dataset.data[i] = model.to_numpy(b)
-#
-#     sampler = tud.sampler.SequentialSampler(dataset)
-#     loader = tud.DataLoader(dataset,
-#                 batch_size=batch_size,
-#                 sampler=sampler,
-#                 collate_fn=collate)
-#     return loader
 
 def make_loader(data_path, batch_size, model):
     dataset = CarlaDataset(data_path)

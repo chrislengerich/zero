@@ -7,6 +7,32 @@ import torch
 
 
 
+class ClusterLoss(nn.Module):
+
+    def __init__(self, num_objects):
+        super(ClusterLoss, self).__init__()
+        self.num_objects = num_objects
+
+    def forward(self, yhat, y):
+        """
+            Strongly supervised loss.
+        """
+        # maximum(minimum of L2 distance between the first point in y and y_hat))
+        # for the moment, just using the first term
+        assert not y.requires_grad, \
+            "nn criterions don't compute the gradient w.r.t. targets - please " \
+            "mark these variables as volatile or not requiring gradients"
+
+        # print y
+        # print y[:, 0, :].unsqueeze(1).expand_as(yhat)
+
+        pairwise_distance = (y[:, 0, :].unsqueeze(1).expand_as(yhat) - yhat).view(5,2)
+        #print pairwise_distance
+        norm = torch.pow(torch.norm(pairwise_distance, p=2, dim=1), 2.0)
+        #print norm
+        #print torch.mean(norm)
+        #raise "die!"
+        return torch.mean(norm)
 
 class LinearModel(nn.Module):
 
@@ -17,13 +43,13 @@ class LinearModel(nn.Module):
         if not config:
             with open(config_path, 'r') as fid:
                 config = json.load(fid)
-        config = config["model"]
+        self.config = config["model"]
 
         # How to composite
-        in_channels = config["in_channels"]
+        in_channels = self.config["in_channels"]
         convs = []
         # Alternating layers of convolution, max pooling.
-        for l in config["layers"]:
+        for l in self.config["layers"]:
             # TODO: Calculate the correct padding.
             padding = 0
             if l["type"] == "conv":
@@ -36,7 +62,8 @@ class LinearModel(nn.Module):
 
         self.convs = convs
 
-        output_dim = 2 # [xmin, xmax] of centroid
+        output_dim = self.config["num_objects"] * 2 # number of objects * [xmin, xmax]
+
         self.conv = nn.Sequential(*convs)
 
         # final dimensionality of convolutional tower output: channels x width x height
@@ -73,16 +100,21 @@ class LinearModel(nn.Module):
         # fixed number of timesteps.
 
         self.loss = nn.MSELoss()
+        self.multi_loss = ClusterLoss(self.config["num_objects"])
 
     def to_numpy(self, data_point):
-        # Each data point is a single RGB frame and the image coordinates of the closest car (for the front-facing camera)
+        # Each data point is a single RGB frame and the image coordinates of the closest n cars (for the front-facing camera)
+
         image_width = 800.
         image_height = 600.
 
-        coords_numpy = copy.deepcopy(data_point['closest_car_image'])
-        assert len(coords_numpy) == 2
-        coords_numpy[0] /= image_width
-        coords_numpy[1] /= image_height
+        coords_numpy = np.vstack([p[0:2] for p in data_point['closest_car_image'][0:self.config["num_objects"]]])
+        assert coords_numpy.shape == (self.config["num_objects"], 2)
+
+        coords_numpy[:, 0] /= image_width
+        coords_numpy[:, 1] /= image_height
+        coords_numpy = np.clip(coords_numpy, 0.01, 0.99)
+
         return (data_point['rgb'].astype(np.float32).transpose([2,0,1]), coords_numpy.astype(np.float32))
 
     def from_numpy(self, np_data_point):
@@ -90,23 +122,21 @@ class LinearModel(nn.Module):
         image_height = 600.
 
         closest_car_image = np_data_point[1]
-        closest_car_image[0] *= image_width
-        closest_car_image[1] *= image_height
-        data = { 'rgb': np_data_point[0].astype(int).transpose([1,2,0]),  'closest_car_image': closest_car_image }
+        closest_car_image[:, 0] *= image_width
+        closest_car_image[:, 1] *= image_height
+        data = { 'rgb': np_data_point[0].astype(int).transpose([1,2,0]),  'closest_car_image': np.vsplit(closest_car_image) }
         return data
 
     def forward(self, images):
-        # print(images)
         out = self.conv(images)
-        # print(out)
-        b, c, x, y = out.shape # minibatch size, number of output filters, x and y translations of the image.
+        b, c, x, y = out.shape # minibatch size, number of output filters, x and y filter responses.
 
         # print(b)
         # print(c)
         # print(x)
         # print(y)
 
-        out = out.view(b, x*y*c)
+        out = out.view(b, self.config["num_objects"], x*y*c)
         return torch.sigmoid(self.fc(out))
 
 
