@@ -68,6 +68,7 @@ class CarlaDataset(tud.Dataset):
         self._data = [] # auxilary information to persist
 
         episode = []
+        subepisodes = 0
         old_episode_name = ""
 
         for rgb, depth, segment, measure, episode_name in tqdm(zip(rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths, episode_names)):
@@ -81,27 +82,32 @@ class CarlaDataset(tud.Dataset):
             if episode_name != old_episode_name:
                 episode = []
                 old_episode_name = episode_name
+                subepisodes = 0
             episode.append(point)
 
             # must be the same as the episode length in train_physics.py
             episode_length = 5
             if len(episode) == episode_length:
+                key = str(episode_name) + "_{}".format(subepisodes)
                 if random.random() > 0.5:
                     for p in episode:
-                        if episode_name not in self.episodes:
-                            self.episodes[episode_name] = []
-                        self.episodes[episode_name].append(p)
+                        if key not in self.episodes:
+                            self.episodes[key] = []
+                        self.episodes[key].append(p)
                         self.data.append(p)
                         self._data.append(copy.deepcopy(p))
                         p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
                 else:
                     for p in reversed(episode):
-                        if episode_name not in self.episodes:
-                            self.episodes[episode_name] = []
-                        self.episodes[episode_name].append(p)
+                        if key not in self.episodes:
+                            self.episodes[key] = []
+                        self.episodes[key].append(p)
                         self.data.append(p)
                         self._data.append(copy.deepcopy(p))
                         p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)[0:2]
+                assert len(self.episodes[key]) == 5, len(self.episodes[key])
+                episode = []
+                subepisodes += 1
 
     def split_carla_episode(self, string):
         s = string.split("/")
@@ -304,7 +310,7 @@ class CarlaDataset(tud.Dataset):
            dist = np.linalg.norm(my_pos - pos)
 
            distances.append({ "dist": dist, "world_position": pos, "camera_position": pos - my_pos , "id": c["id"], "forward_speed": c["vehicle"].get("forwardSpeed", 0)})
-        distances = filter(lambda x: x["forward_speed"] > 20, distances)
+        #distances = filter(lambda x: x["forward_speed"] > 20, distances)
         return sorted(distances, key=lambda x: x["dist"])
 
     def get_episode(self, idx):
@@ -325,7 +331,7 @@ class CarlaDataset(tud.Dataset):
         # assert len(episode) > 2
 
         steps = len(predictions_image)
-        first_frame_idx = idx #self.get_episode_frame_idx(idx)
+        first_frame_idx = idx # self.get_episode_frame_idx(idx)
         frame_idxs = np.arange(first_frame_idx, first_frame_idx + steps)
         locations = [np.array(self.closest_cars(i)[0]["world_position"]) for i in frame_idxs]
         locations_image = [self.world_to_image(i,c) for (i,c) in zip(frame_idxs, locations)]
@@ -387,9 +393,10 @@ class CarlaDataset(tud.Dataset):
         ax.imshow(self.data[idx]['rgb'])
 
         # Get the location of the closest car in homogeneous coordinates, and plot it as a bounding box.
-        image_coords = self.world_to_image(idx, self.closest_cars(idx)[0]["world_position"])
-        rect = patches.Rectangle((image_coords[0], image_coords[1]), 10, 10, linewidth=1, edgecolor='r', facecolor='none')
-        ax.add_patch(rect)
+        for i in range(3):
+            image_coords = self.world_to_image(idx, self.closest_cars(idx)[i]["world_position"])
+            rect = patches.Rectangle((image_coords[0], image_coords[1]), 10, 10, linewidth=1, edgecolor='r', facecolor='none')
+            ax.add_patch(rect)
         fig, ax = plt.subplots(1)
         ax.imshow(np.log(self.data[idx]['depth']))
         fig, ax = plt.subplots(1)

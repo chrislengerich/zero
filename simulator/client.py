@@ -53,8 +53,8 @@ def has_car(sensor_data):
 
 def run_carla_client(host, port, autopilot_on, save_images_to_disk, image_filename_format, settings_filepath):
     # Here we will run 3 episodes with 300 frames each.
-    number_of_episodes = 100
-    episode_start = 1
+    number_of_episodes = 2
+    episode_start = 101
     frames_per_episode = 1000
 
     # We assume the CARLA server is already waiting for a client to connect at

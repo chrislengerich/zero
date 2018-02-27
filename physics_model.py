@@ -55,6 +55,23 @@ class LinearModel(nn.Module):
                                   nn.Linear(batch_size * output_dim, 1), nn.Tanh() ]
         self.discriminator = nn.Sequential(*self.discriminator_arr)
 
+        # Object association.
+        # Given N objects, predict which object they correspond to in the previous frame.
+        #
+        #  For a single object, we can treat this as an attention mechanism (possibly). Given all inputs and a series of
+        #  fully connected layers, we'd like to output a single coherent vector of velocities.
+        #
+        #  [x, y, identity], [x, y, identity], random initial state -> attention vector [0,1] for the remainder of the network * batch size.
+        #  RNN.
+        #
+        #  Encode a larger latent state as an RNN, decode it
+        #
+        #  Goal: substitute in the exact (x, y, identity vectors), and see if we can train the network to track objects.
+        #  Can also use a min(L2 distance between each object pair).
+        #
+        # Simple model - RNN. Challenge: RNN has variable length output. Not necessarily - I can run an RNN over a
+        # fixed number of timesteps.
+
         self.loss = nn.MSELoss()
 
     def to_numpy(self, data_point):
