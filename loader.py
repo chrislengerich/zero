@@ -86,7 +86,7 @@ class CarlaDataset(tud.Dataset):
             episode.append(point)
 
             # must be the same as the episode length in train_physics.py
-            episode_length = 5
+            episode_length = 4
             if len(episode) == episode_length:
                 key = str(episode_name) + "_{}".format(subepisodes)
                 if random.random() > 0.5:
@@ -105,7 +105,7 @@ class CarlaDataset(tud.Dataset):
                         self.data.append(p)
                         self._data.append(copy.deepcopy(p))
                         p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)
-                assert len(self.episodes[key]) == 5, len(self.episodes[key])
+                assert len(self.episodes[key]) == episode_length, len(self.episodes[key])
                 episode = []
                 subepisodes += 1
 
@@ -305,7 +305,12 @@ class CarlaDataset(tud.Dataset):
         # Verify conversion backwards and forwards works.
         image_coordinates = self.world_to_image(idx, pos["world_position"])
         if image_coordinates[0] < 800 and image_coordinates[1] < 600 and image_coordinates[0] > 0 and image_coordinates[1] > 0:
-            if self.data[idx]["segment"][int(image_coordinates[1]), int(image_coordinates[0])] == 10:
+            x_bound = int(image_coordinates[1])
+            y_bound = int(image_coordinates[0])
+            neighorhood = 7
+
+            has_car = np.where(self.data[idx]["segment"][x_bound - neighorhood : x_bound + neighorhood, y_bound - neighorhood: y_bound + neighorhood] == 10)
+            if len(has_car[0]) > 0:
                 world_coordinates = self.image_to_world(idx, image_coordinates[0:2])
                 norm = np.linalg.norm(world_coordinates - pos["world_position"])
                 if norm < 5000:
@@ -389,12 +394,12 @@ class CarlaDataset(tud.Dataset):
         pprint.pprint(predictions_image)
 
     def view_extrapolated(self, idx):
-        steps = 5
+        steps = 4
         first_frame_idx = self.get_episode_frame_idx(idx)
         frame_idxs = np.arange(first_frame_idx, first_frame_idx + steps)
         locations = [np.array(self.closest_cars(i)[0]["world_position"]) for i in frame_idxs]
 
-        extrapolated_world = extrapolate.linear(locations[0], locations[1], 5)
+        extrapolated_world = extrapolate.linear(locations[0], locations[1], 4)
         extrapolated_image = [self.world_to_image(i, c) for (i, c) in zip(frame_idxs, extrapolated_world)]
         extrapolated_image[0][0] += 100
         #extrapolated_image[1][0] += 100
@@ -511,8 +516,13 @@ def collate(batch):
 
 def make_loader(data_path, batch_size, model):
     dataset = CarlaDataset(data_path)
+    new_data = []
     for i, b in enumerate(dataset):
-        dataset.data[i] = model.to_numpy(b)
+        try:
+            new_data.append(model.to_numpy(b))
+        except ValueError:
+            continue
+    dataset.data = new_data
     print("Dataset length")
     print(len(dataset.data))
 

@@ -128,7 +128,7 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         optimizer.zero_grad()
         yhat = model(x)
 
-        episode_size = 5
+        episode_size = 4
         num_objects = 1
         if yhat.shape != (episode_size, num_objects, 2):
             continue

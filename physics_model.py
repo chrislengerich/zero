@@ -25,8 +25,9 @@ class ClusterLoss(nn.Module):
 
         # Test 1:
         # Load multi-car data. Provide only the single car in-frame. Inspect performance.
+        episode_size = 4
 
-        pairwise_distance = (y[:, 0, :].unsqueeze(1).expand_as(yhat) - yhat).view(5,2)
+        pairwise_distance = (y[:, 0, :].unsqueeze(1).expand_as(yhat) - yhat).view(episode_size, 2)
         norm = torch.pow(torch.norm(pairwise_distance, p=2, dim=1), 2.0)
         return torch.mean(norm)
 
@@ -67,7 +68,7 @@ class LinearModel(nn.Module):
         self.fc = nn.Linear(in_channels, output_dim)
 
         # 5-layer fully connected discriminator.
-        batch_size=5
+        batch_size=4
         self.discriminator_arr = [nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(),
                                   nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(),
                                   nn.Linear(batch_size * output_dim, batch_size * output_dim), nn.Tanh(),
