@@ -18,7 +18,7 @@ def eval_loop(model, data_loader, use_cuda=True):
             print(out)
             print("y")
             print(y)
-        loss = model.loss.forward(out, y)
+        loss = model.multi_loss.forward(out, y)
         losses.append(loss.data[0])
     avg_loss = np.mean(losses)
     return avg_loss

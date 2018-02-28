@@ -3,19 +3,19 @@
   "save_path": "model_physics",
 
   "data": {
-    "train_set": "data/train_carla_multicar",
+    "train_set": "data/train_carla_multicar_medium",
     "dev_set": "data/val_carla_single_car"
   },
 
   "optimizer" : {
         "epochs" : 50,
         "batch_size" : 4,
-        "learning_rate" : 0.5e-1,
+        "learning_rate" : 1e-2,
         "momentum" : 0.9
   },
 
   "model": {
-    "num_objects": 1,
+    "num_objects": 2,
     "layers": [
       {
         "type": "conv",

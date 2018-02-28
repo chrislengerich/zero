@@ -58,7 +58,7 @@ class CarlaDataset(tud.Dataset):
         # ground-truth semantic segmentation.
         return sum(sum(segment == 10)) / float(segment.shape[0] * segment.shape[1])
 
-    def _load(self, rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths, episode_names):
+    def _load(self, rgb_camera_paths, depth_camera_paths, segmentation_camera_paths, measurement_paths, episode_names, config):
         assert len(rgb_camera_paths) == len(depth_camera_paths)
         assert len(depth_camera_paths) == len(segmentation_camera_paths)
         assert len(segmentation_camera_paths) == len(measurement_paths)
@@ -96,7 +96,7 @@ class CarlaDataset(tud.Dataset):
                         self.episodes[key].append(p)
                         self.data.append(p)
                         self._data.append(copy.deepcopy(p))
-                        p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)
+                        p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1, count=config["model"]["num_objects"])
                 else:
                     for p in reversed(episode):
                         if key not in self.episodes:
@@ -104,7 +104,7 @@ class CarlaDataset(tud.Dataset):
                         self.episodes[key].append(p)
                         self.data.append(p)
                         self._data.append(copy.deepcopy(p))
-                        p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1)
+                        p['closest_car_image'] = self.closest_car_centroid_image(len(self.data) - 1, count=config["model"]["num_objects"])
                 assert len(self.episodes[key]) == episode_length, len(self.episodes[key])
                 episode = []
                 subepisodes += 1
@@ -115,7 +115,7 @@ class CarlaDataset(tud.Dataset):
         unique_id = str(int(1E6 * carla_episode_name) + int(s[1]))
         return [carla_episode_name, unique_id, int(s[1])]
 
-    def __init__(self, data_file=None):
+    def __init__(self, data_file=None, config=None):
         images_base = "/home/gimli/zero/data/_images"
         measurements_base = "/home/gimli/zero/data/_measurements"
 
@@ -162,7 +162,7 @@ class CarlaDataset(tud.Dataset):
                     episode_names.append(
                         episode_name
                     )
-            self._load(rgb_paths, depth_paths, seg_paths, measure_paths, episode_names)
+            self._load(rgb_paths, depth_paths, seg_paths, measure_paths, episode_names, config)
 
     def __len__(self):
         return len(self.data)
@@ -514,8 +514,8 @@ def collate(batch):
     labels = autograd.Variable(torch.from_numpy(labels))
     return inputs, labels
 
-def make_loader(data_path, batch_size, model):
-    dataset = CarlaDataset(data_path)
+def make_loader(data_path, batch_size, model, config):
+    dataset = CarlaDataset(data_path, config)
     new_data = []
     for i, b in enumerate(dataset):
         try:

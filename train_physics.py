@@ -111,6 +111,12 @@ def adversarial_loss(yhat, y, model, optimizer, i):
         for v in model.discriminator_arr:
             util.flip_params(v, True)
 
+def pseudo_loss(model, optimizer, yhat, y):
+    pseudo_loss = model.loss.forward(yhat, y)
+    pseudo_loss.backward()
+    optimizer.step()
+    return pseudo_loss
+
 def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
     tq = tqdm.tqdm(train_ldr)
 
@@ -128,10 +134,10 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         optimizer.zero_grad()
         yhat = model(x)
 
-        episode_size = 4
-        num_objects = 1
-        if yhat.shape != (episode_size, num_objects, 2):
-            continue
+        # episode_size = 4
+        # num_objects = 2
+        # if yhat.shape != (episode_size, num_objects, 2):
+        #     continue
 
         # Clean up the incoming labels.
 
@@ -141,20 +147,16 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         multi_loss.backward()
         optimizer.step()
 
-        pseudo_loss = model.loss.forward(yhat, y)
-        # pseudo_loss.backward()
-        # optimizer.step()
-
         exp_w = 0.99
-        avg_pseudo_loss = exp_w * avg_pseudo_loss + (1 - exp_w) * pseudo_loss.data[0]
-        tb.log_value('train_pseudo_loss', pseudo_loss.data[0], it)
+        # avg_pseudo_loss = exp_w * avg_pseudo_loss + (1 - exp_w) * pseudo_loss.data[0]
+        # tb.log_value('train_pseudo_loss', pseudo_loss.data[0], it)
 
-        loss = model.loss.forward(yhat, y)
-        tb.log_value('train_loss', loss.data[0], it)
-        avg_loss = exp_w * avg_loss + (1 - exp_w) * loss.data[0]
-        print "Psuedo loss %f" % (pseudo_loss.data[0])
+        # loss = model.loss.forward(yhat, y)
+        tb.log_value('train_loss', multi_loss.data[0], it)
+        avg_loss = exp_w * avg_loss + (1 - exp_w) * multi_loss.data[0]
+        print "Psuedo loss %f" % (multi_loss.data[0])
 
-        tq.set_postfix(iter=it, pseudo_loss=pseudo_loss.data[0], avg_pseudo_loss=avg_pseudo_loss, avg_loss=avg_loss)
+        tq.set_postfix(iter=it, avg_loss=avg_loss) #pseudo_loss=pseudo_loss.data[0], avg_pseudo_loss=avg_pseudo_loss, avg_loss=avg_loss)
         it += 1
 
     return it, avg_pseudo_loss, avg_loss
@@ -173,9 +175,9 @@ def run(config):
     batch_size = opt_cfg["batch_size"]
     preproc = None #loader.Preprocessor(data_cfg["train_set"])
     train_ldr = loader.make_loader(data_cfg["train_set"],
-                                   batch_size, model)
+                                   batch_size, model, config)
     dev_ldr = loader.make_loader(data_cfg["dev_set"],
-                                  batch_size, model)
+                                  batch_size, model, config)
 
     # Optimizer
     optimizer = torch.optim.SGD(model.parameters(),
