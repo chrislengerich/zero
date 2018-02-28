@@ -97,8 +97,7 @@ if __name__ == "__main__":
                         help="Run in deterministic mode (no cudnn). Only works on GPU.")
     args = parser.parse_args()
 
-    with open(args.config, 'r') as fid:
-        config = json.load(fid)
+    config = util.load_config(args.config)
 
     random.seed(config["seed"])
     torch.manual_seed(config["seed"])

@@ -123,9 +123,10 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
     #permuted_tq = tqdm.tqdm(reversed(list(copy.deepcopy(train_ldr))))
 
     for i, (x,y) in enumerate(tq):
-        if i > 9:
-            continue
     #for i, ((x, y), (x_rev, y_rev)) in enumerate(zip(tq, permuted_tq)):
+        if i > 15:
+            continue
+
         y_rev = y
         if use_cuda:
             x = x.cuda()
@@ -142,6 +143,11 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         # Clean up the incoming labels.
 
         # adversarial_loss(yhat, y, model, optimizer, i)
+        if i == 5:
+            print "y"
+            print y
+            print "yhat"
+            print yhat
 
         multi_loss = model.multi_loss.forward(yhat, y)
         multi_loss.backward()
@@ -154,7 +160,7 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         # loss = model.loss.forward(yhat, y)
         tb.log_value('train_loss', multi_loss.data[0], it)
         avg_loss = exp_w * avg_loss + (1 - exp_w) * multi_loss.data[0]
-        print "Psuedo loss %f" % (multi_loss.data[0])
+        print "Train loss %f" % (multi_loss.data[0])
 
         tq.set_postfix(iter=it, avg_loss=avg_loss) #pseudo_loss=pseudo_loss.data[0], avg_pseudo_loss=avg_pseudo_loss, avg_loss=avg_loss)
         it += 1

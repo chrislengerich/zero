@@ -5,7 +5,6 @@ import json
 import copy
 import torch
 
-
 class MultiLoss(nn.Module):
 
     def __init__(self, num_objects):
@@ -21,16 +20,17 @@ class MultiLoss(nn.Module):
         # print y
         # print yhat
 
+        count = 0
         for batch in range(y.shape[0]):
             for yi in range(y.shape[1]):
-                delta = y[batch, yi, :].expand_as(yhat[batch,:,:]) - yhat[batch,:,:]
-                # if batch == 0 and yi == 0:
-                #     print delta
-                #assert delta.shape == [yhat.shape[1], 2], delta.shape
-                # print torch.pow(torch.norm(delta, p=2, dim=1), 2.0)
-                final = torch.min(torch.pow(torch.norm(delta, p=2, dim=1), 2.0))
-                #assert final.size() == (1), final.size()
-                loss += final
+                if y[batch, yi, 0].data[0] > 0:
+                    count += 1.
+                    delta = y[batch, yi, :].expand_as(yhat[batch,:,:]) - yhat[batch,:,:]
+                    final = torch.min(torch.pow(torch.norm(delta, p=2, dim=1), 2.0))
+                    loss += final
+        loss /= count
+        print count
+
         return loss
 
     def forward(self, yhat, y):
@@ -42,12 +42,6 @@ class MultiLoss(nn.Module):
         assert not y.requires_grad, \
             "nn criterions don't compute the gradient w.r.t. targets - please " \
             "mark these variables as volatile or not requiring gradients"
-
-        # Test 1:
-        # Load multi-car data. Provide only the single car in-frame. Inspect performance.
-        # episode_size = 4
-        # pairwise_distance = (y[:, 0, :].unsqueeze(1).expand_as(yhat) - yhat).view(episode_size, 2)
-        # norm = torch.pow(torch.norm(pairwise_distance, p=2, dim=1), 2.0)
 
         return torch.mean(self.attribute(yhat, y))
 
@@ -107,13 +101,16 @@ class LinearModel(nn.Module):
         image_height = 600.
 
         actual_num_objects = min(self.config["num_objects"], len(data_point['closest_car_image']))
+        for i in range(self.config["num_objects"] - actual_num_objects):
+            data_point['closest_car_image'].append(np.array([-1,-1, 1]).astype(np.float32))
+        print data_point['closest_car_image']
 
-        coords_numpy = np.vstack([p[0:2] for p in data_point['closest_car_image'][0:actual_num_objects]])
-        assert coords_numpy.shape == (actual_num_objects, 2)
+        coords_numpy = np.vstack([p[0:2] for p in data_point['closest_car_image'][0:self.config["num_objects"]]])
+        assert coords_numpy.shape == (self.config["num_objects"], 2)
 
         coords_numpy[:, 0] /= image_width
         coords_numpy[:, 1] /= image_height
-        coords_numpy = np.clip(coords_numpy, 0.01, 0.99)
+        # coords_numpy = np.clip(coords_numpy, 0.01, 0.99)
 
         return (data_point['rgb'].astype(np.float32).transpose([2,0,1]), coords_numpy.astype(np.float32))
 

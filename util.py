@@ -1,6 +1,7 @@
 import os
 import cPickle as pickle
 import torch
+import json
 
 MODEL = "best_model"
 PREPROC = "preproc.pyc"
@@ -23,6 +24,11 @@ def load(path, tag=""):
     # with open(preproc_n, 'r') as fid:
     #     preproc = pickle.load(fid)
     return model#, preproc
+
+def load_config(path):
+    with open(path, 'r') as fid:
+        config = json.load(fid)
+    return config
 
 def flip_params(variable, state):
     for p in variable.parameters():
