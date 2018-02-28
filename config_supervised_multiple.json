@@ -3,7 +3,7 @@
   "save_path": "model_physics",
 
   "data": {
-    "train_set": "data/train_carla_single_car_medium",
+    "train_set": "data/train_carla_multicar",
     "dev_set": "data/val_carla_single_car"
   },
 

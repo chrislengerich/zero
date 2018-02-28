@@ -23,15 +23,11 @@ class ClusterLoss(nn.Module):
             "nn criterions don't compute the gradient w.r.t. targets - please " \
             "mark these variables as volatile or not requiring gradients"
 
-        # print y
-        # print y[:, 0, :].unsqueeze(1).expand_as(yhat)
+        # Test 1:
+        # Load multi-car data. Provide only the single car in-frame. Inspect performance.
 
         pairwise_distance = (y[:, 0, :].unsqueeze(1).expand_as(yhat) - yhat).view(5,2)
-        #print pairwise_distance
         norm = torch.pow(torch.norm(pairwise_distance, p=2, dim=1), 2.0)
-        #print norm
-        #print torch.mean(norm)
-        #raise "die!"
         return torch.mean(norm)
 
 class LinearModel(nn.Module):

@@ -301,6 +301,21 @@ class CarlaDataset(tud.Dataset):
         intrinsic[1, 2] = Center_Y
         return intrinsic
 
+    def is_visible(self, idx, pos):
+        # Verify conversion backwards and forwards works.
+        image_coordinates = self.world_to_image(idx, pos["world_position"])
+        if image_coordinates[0] < 800 and image_coordinates[1] < 600 and image_coordinates[0] > 0 and image_coordinates[1] > 0:
+            if self.data[idx]["segment"][int(image_coordinates[1]), int(image_coordinates[0])] == 10:
+                world_coordinates = self.image_to_world(idx, image_coordinates[0:2])
+                norm = np.linalg.norm(world_coordinates - pos["world_position"])
+                if norm < 5000:
+                    return True
+            else:
+                return False
+
+        else:
+            return False
+
     # Return the closest moving cars. Data also includes ego-coordinates and stopped cars out of the camera view.
     def closest_cars(self, idx):
         other_cars = self.car_locations(idx)
@@ -314,13 +329,7 @@ class CarlaDataset(tud.Dataset):
            dist = np.linalg.norm(my_pos - pos)
 
            distances.append({ "dist": dist, "world_position": pos, "camera_position": pos - my_pos , "id": c["id"], "forward_speed": c["vehicle"].get("forwardSpeed", 0)})
-
-        # Main issue:
-        #    Speed should not be a filter.
-        #    Would like to only select the cars that appear in front of the car.
-        #    Strict supervision is a lot easier (albeit time-consuming).
-        if not self.data_file == "data/train_carla_multicar":
-            distances = filter(lambda x: x["forward_speed"] > 20, distances)
+        distances = filter(lambda x: self.is_visible(idx, x), distances)
         return sorted(distances, key=lambda x: x["dist"])
 
     def get_episode(self, idx):
@@ -410,9 +419,10 @@ class CarlaDataset(tud.Dataset):
         fig, ax = plt.subplots(1)
         ax.imshow(self.data[idx]['rgb'])
 
+        closest_cars = self.closest_cars(idx)
         # Get the location of the closest car in homogeneous coordinates, and plot it as a bounding box.
-        for i in range(1):
-            image_coords = self.world_to_image(idx, self.closest_cars(idx)[i]["world_position"])
+        for i in range(min(len(closest_cars), 5)):
+            image_coords = self.world_to_image(idx, closest_cars[i]["world_position"])
             rect = patches.Rectangle((image_coords[0], image_coords[1]), 10, 10, linewidth=1, edgecolor='r', facecolor='none')
             ax.add_patch(rect)
         # fig, ax = plt.subplots(1)
