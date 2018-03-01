@@ -2,8 +2,16 @@ import torch.nn as nn
 import numpy as np
 from loader import CarlaDataset
 import json
-import copy
 import torch
+
+# class RecurrentLoss(nn.Module):
+#     def __init__(self, num_objects):
+#         super(RecurrentLoss, self).__init__()
+#         self.num_objects = num_objects
+#
+#     def attribute(self, yhat, y):
+#         """Attribute the loss for each object to the derived data"""
+
 
 
 class MultiLoss(nn.Module):
@@ -21,7 +29,7 @@ class MultiLoss(nn.Module):
             for yi in range(y.shape[1]):
                 if y[batch, yi, 0].data[0] > 0:
                     count += 1.
-                    delta = y[batch, yi, :].expand_as(yhat[batch,:,:]) - yhat[batch,:,:]
+                    delta = y[batch, yi, 0:2].expand_as(yhat[batch,:,0:2]) - yhat[batch,:,0:2]
                     final = torch.min(torch.pow(torch.norm(delta, p=2, dim=1), 2.0))
                     loss += final
         loss /= count
@@ -91,32 +99,26 @@ class LinearModel(nn.Module):
         self.multi_loss = MultiLoss(self.config["num_objects"])
 
     def to_numpy(self, data_point):
-        # Each data point is a single RGB frame and the image coordinates of up to <num_objects> cars.
-
-        image_width = 800.
-        image_height = 600.
+        # Each data point is a single RGB frame and the image coordinates and identifiers of up to <num_objects> cars.
 
         actual_num_objects = min(self.config["num_objects"], len(data_point['closest_car_image']))
         for i in range(self.config["num_objects"] - actual_num_objects):
-            data_point['closest_car_image'].append(np.array([-1,-1, 1]).astype(np.float32))
+            data_point['closest_car_image'].append(np.array([-1,-1,-1]).astype(np.float32))
         print data_point['closest_car_image']
 
-        coords_numpy = np.vstack([p[0:2] for p in data_point['closest_car_image'][0:self.config["num_objects"]]])
+        coords_numpy = np.vstack([p for p in data_point['closest_car_image'][0:self.config["num_objects"]]])
         assert coords_numpy.shape == (self.config["num_objects"], self.config["features_per_object"])
 
-        coords_numpy[:, 0] /= image_width
-        coords_numpy[:, 1] /= image_height
-
+        coords_numpy[:, 0] /= self.config["image_width"]
+        coords_numpy[:, 1] /= self.config["image_height"]
 
         return (data_point['rgb'].astype(np.float32).transpose([2,0,1]), coords_numpy.astype(np.float32))
 
     def from_numpy(self, np_data_point):
-        image_width = 800.
-        image_height = 600.
 
         closest_car_image = np_data_point[1]
-        closest_car_image[:, 0] *= image_width
-        closest_car_image[:, 1] *= image_height
+        closest_car_image[:, 0] *= self.config["image_width"]
+        closest_car_image[:, 1] *= self.config["image_height"]
         data = { 'rgb': np_data_point[0].astype(int).transpose([1,2,0]),  'closest_car_image': np.vsplit(closest_car_image) }
         return data
 
@@ -124,13 +126,8 @@ class LinearModel(nn.Module):
         out = self.conv(images)
         b, c, x, y = out.shape # minibatch size, number of output filters, x and y filter responses.
 
-        # print(b)
-        # print(c)
-        # print(x)
-        # print(y)
-
         out = out.view(b, x*y*c)
-        return torch.sigmoid(self.fc(out)).view(b,self.config["num_objects"],2)
+        return torch.sigmoid(self.fc(out)).view(b,self.config["num_objects"], self.config["features_per_object"])
 
 
 if __name__ == "__main__":

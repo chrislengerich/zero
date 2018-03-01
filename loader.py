@@ -355,6 +355,7 @@ class CarlaDataset(tud.Dataset):
         for i in range(min(count, len(closest_cars))):
             location = np.array(closest_cars[i]["world_position"])
             image_coords = self.world_to_image(idx, location)
+            image_coords[2] = closest_cars[i]["id"]
             coords.append(image_coords)
         return coords
 

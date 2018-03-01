@@ -135,13 +135,6 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
         optimizer.zero_grad()
         yhat = model(x)
 
-        # episode_size = 4
-        # num_objects = 2
-        # if yhat.shape != (episode_size, num_objects, 2):
-        #     continue
-
-        # Clean up the incoming labels.
-
         # adversarial_loss(yhat, y, model, optimizer, i)
         if i == 5:
             print "y"

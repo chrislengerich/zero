@@ -16,7 +16,9 @@
 
   "model": {
     "num_objects": 3,
-    "features_per_object": 2,
+    "features_per_object": 3,
+    "image_width": 800.0,
+    "image_height": 600.0,
     "layers": [
       {
         "type": "conv",
