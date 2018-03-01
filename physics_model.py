@@ -4,15 +4,69 @@ from loader import CarlaDataset
 import json
 import torch
 
-# class RecurrentLoss(nn.Module):
-#     def __init__(self, num_objects):
-#         super(RecurrentLoss, self).__init__()
-#         self.num_objects = num_objects
-#
-#     def attribute(self, yhat, y):
-#         """Attribute the loss for each object to the derived data"""
+class RecurrentSupervisedLoss(nn.Module):
+    """
+        Strong supervised loss over multiple frames.
+    """
+    def __init__(self, num_objects):
+        super(RecurrentSupervisedLoss, self).__init__()
+        self.num_objects = num_objects
 
+    def match_bounding_box(self, candidates, position):
+        delta = position.expand_as(candidates) - candidates
+        norms = torch.norm(delta, p=2, dim=1).data
+        return np.argmin(norms)
 
+    def attribute(self, yhat, y):
+        """Attribute the loss to matched bounding boxes across several frames."""
+        loss = torch.autograd.Variable(torch.from_numpy(np.zeros(1).astype(np.float32))).cuda()
+
+        count = 0
+        for bi in range(y.shape[0]-1):
+            for yi in range(y.shape[1]):
+
+                if y[bi, yi, 0].data[0] > 0:
+                    id = y[bi, yi, :].data[2]
+
+                    # find the index of the object in the next frame
+                    next_yi = -1
+                    for ci in range(y.shape[1]):
+                        if y[bi + 1, ci, :].data[2] == id:
+                            next_yi = ci
+                    if next_yi == -1:
+                        continue
+
+                    # find the index of the corresponding bounding box in bi.
+                    bi_index = self.match_bounding_box(yhat[bi, :, 0:2], y[bi, yi, 0:2])
+
+                    # find the index of the corresponding bounding box in bi + 1.
+                    next_bi_index = self.match_bounding_box(yhat[bi + 1, :, 0:2], y[bi+1, next_yi, 0:2])
+
+                    # calculate the image velocity from the bounding boxes.
+                    velocity_hat = yhat[bi + 1, next_bi_index, 0:2] - yhat[bi, bi_index, 0:2]
+
+                    # calculate the image velocity from the object locations.
+                    velocity_target = y[bi + 1, next_yi, 0:2] - y[bi, yi, 0:2]
+
+                    # delta
+                    delta = velocity_target - velocity_hat
+
+                    # loss
+                    final = torch.norm(delta, p=2)
+                    loss += final
+                    count += 1.
+        loss /= count
+        print count
+        return loss
+
+    def forward(self, yhat, y):
+        # maximum(minimum of L2 distance between the first point in y and y_hat))
+        # for the moment, just using the first term
+        assert not y.requires_grad, \
+            "nn criterions don't compute the gradient w.r.t. targets - please " \
+            "mark these variables as volatile or not requiring gradients"
+
+        return torch.mean(self.attribute(yhat, y))
 
 class MultiLoss(nn.Module):
 
@@ -39,7 +93,7 @@ class MultiLoss(nn.Module):
 
     def forward(self, yhat, y):
         """
-            Strongly supervised loss.
+            Strong supervised loss over single frames (similar to YOLO).
         """
         # maximum(minimum of L2 distance between the first point in y and y_hat))
         # for the moment, just using the first term
@@ -97,6 +151,7 @@ class LinearModel(nn.Module):
 
         self.loss = nn.MSELoss()
         self.multi_loss = MultiLoss(self.config["num_objects"])
+        self.recurrent_loss = RecurrentSupervisedLoss(self.config["num_objects"])
 
     def to_numpy(self, data_point):
         # Each data point is a single RGB frame and the image coordinates and identifiers of up to <num_objects> cars.

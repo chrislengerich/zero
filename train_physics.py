@@ -142,21 +142,27 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
             print "yhat"
             print yhat
 
-        multi_loss = model.multi_loss.forward(yhat, y)
-        multi_loss.backward()
+        recurrent_loss = model.recurrent_loss.forward(yhat, y)
+        recurrent_loss.backward()
         optimizer.step()
 
+        multi_loss = model.multi_loss.forward(yhat, y)
+
         exp_w = 0.99
-        # avg_pseudo_loss = exp_w * avg_pseudo_loss + (1 - exp_w) * pseudo_loss.data[0]
-        # tb.log_value('train_pseudo_loss', pseudo_loss.data[0], it)
+
+        print "Recurrent loss %f" % (recurrent_loss.data[0])
+        avg_pseudo_loss = exp_w * avg_pseudo_loss + (1 - exp_w) * recurrent_loss.data[0]
 
         # loss = model.loss.forward(yhat, y)
-        tb.log_value('train_loss', multi_loss.data[0], it)
+
         avg_loss = exp_w * avg_loss + (1 - exp_w) * multi_loss.data[0]
         print "Train loss %f" % (multi_loss.data[0])
 
-        tq.set_postfix(iter=it, avg_loss=avg_loss) #pseudo_loss=pseudo_loss.data[0], avg_pseudo_loss=avg_pseudo_loss, avg_loss=avg_loss)
+        tq.set_postfix(iter=it, avg_loss=avg_loss, avg_pseudo_loss=avg_pseudo_loss) #pseudo_loss=pseudo_loss.data[0], avg_pseudo_loss=avg_pseudo_loss, avg_loss=avg_loss)
         it += 1
+
+    tb.log_value('recurrent_loss', avg_pseudo_loss, it)
+    tb.log_value('train_loss', avg_loss, it)
 
     return it, avg_pseudo_loss, avg_loss
 
