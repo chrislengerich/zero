@@ -15,7 +15,8 @@
   },
 
   "model": {
-    "num_objects": 2,
+    "num_objects": 3,
+    "features_per_object": 2,
     "layers": [
       {
         "type": "conv",

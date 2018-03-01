@@ -5,6 +5,7 @@ import json
 import copy
 import torch
 
+
 class MultiLoss(nn.Module):
 
     def __init__(self, num_objects):
@@ -14,11 +15,6 @@ class MultiLoss(nn.Module):
     def attribute(self, yhat, y):
         """Attribute the loss for each object to the closest prediction."""
         loss = torch.autograd.Variable(torch.from_numpy(np.zeros(1).astype(np.float32))).cuda()
-
-        # imperative loss.
-        # TODO: turn this into matrix form [in progress]
-        # print y
-        # print yhat
 
         count = 0
         for batch in range(y.shape[0]):
@@ -73,7 +69,7 @@ class LinearModel(nn.Module):
 
         self.convs = convs
 
-        output_dim = self.config["num_objects"] * 2 # number of objects * [xmin, xmax]
+        output_dim = self.config["num_objects"] * self.config["features_per_object"]
 
         self.conv = nn.Sequential(*convs)
 
@@ -106,11 +102,11 @@ class LinearModel(nn.Module):
         print data_point['closest_car_image']
 
         coords_numpy = np.vstack([p[0:2] for p in data_point['closest_car_image'][0:self.config["num_objects"]]])
-        assert coords_numpy.shape == (self.config["num_objects"], 2)
+        assert coords_numpy.shape == (self.config["num_objects"], self.config["features_per_object"])
 
         coords_numpy[:, 0] /= image_width
         coords_numpy[:, 1] /= image_height
-        # coords_numpy = np.clip(coords_numpy, 0.01, 0.99)
+
 
         return (data_point['rgb'].astype(np.float32).transpose([2,0,1]), coords_numpy.astype(np.float32))
 
