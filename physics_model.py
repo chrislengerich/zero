@@ -114,7 +114,6 @@ class LinearModel(nn.Module):
                 config = json.load(fid)
         self.config = config["model"]
 
-        # How to composite
         in_channels = self.config["in_channels"]
         convs = []
         # Alternating layers of convolution, max pooling.

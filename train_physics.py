@@ -117,6 +117,15 @@ def pseudo_loss(model, optimizer, yhat, y):
     optimizer.step()
     return pseudo_loss
 
+""""""
+def skip_forward(x, y, t):
+    """
+        Predict bounding boxes from the frame forward by t timesteps.
+    """
+    x = x[0:x.shape[0]-t,:,:]
+    y = y[t:y.shape[0],:,:]
+    return x, y
+
 def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
     tq = tqdm.tqdm(train_ldr)
 
@@ -132,6 +141,8 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
             x = x.cuda()
             y = y.cuda()
 
+        x, y = skip_forward(x, y, 3)
+
         optimizer.zero_grad()
         yhat = model(x)
 
@@ -142,16 +153,15 @@ def run_epoch(model, optimizer, train_ldr, it, avg_pseudo_loss, avg_loss):
             print "yhat"
             print yhat
 
-        recurrent_loss = model.recurrent_loss.forward(yhat, y)
-        recurrent_loss.backward()
-        optimizer.step()
-
-        multi_loss = model.multi_loss.forward(yhat, y)
-
         exp_w = 0.99
 
-        print "Recurrent loss %f" % (recurrent_loss.data[0])
-        avg_pseudo_loss = exp_w * avg_pseudo_loss + (1 - exp_w) * recurrent_loss.data[0]
+        # recurrent_loss = model.recurrent_loss.forward(yhat, y)
+        # print "Recurrent loss %f" % (recurrent_loss.data[0])
+        # avg_pseudo_loss = exp_w * avg_pseudo_loss + (1 - exp_w) * recurrent_loss.data[0]
+
+        multi_loss = model.multi_loss.forward(yhat, y)
+        multi_loss.backward()
+        optimizer.step()
 
         # loss = model.loss.forward(yhat, y)
 
