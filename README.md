@@ -1,6 +1,8 @@
 # zero
 Zero-label highway driving
 
+Using the laws of physics to train an object detector without labels.
+
 Status: Deprecated in favor of unsupervised learning from video frame prediction (v1 project). Other teams trying supervision from physics found it challenging as well. But learned a lot.
 
 Target abstract: We demonstrate that it is possible to train an object detector for autonomous driving applications using zero labels, only the laws of physics. The detector achieves [very high]% MAP when trained on the Kitti self-driving dataset, but is trained entirely without labels.
